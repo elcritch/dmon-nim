@@ -197,10 +197,8 @@ proc monitorThread() {.thread.} =
 
     notice "started thread loop"
     while not dmon.quit:
-      os.sleep(1_000)
       if dmon.numWatches == 0:
-        release(dmon.threadLock)
-        debug "monitorThread: no numWatches: "
+        os.sleep(10)
         continue
 
       withLock(dmon.threadLock):
@@ -411,7 +409,7 @@ when isMainModule:
   let args = commandLineParams()
   let root = 
     if args.len() == 0:
-      "./test/"
+      "./tests/"
     else:
       args[0]
   discard watchDmon(root, cb, {Recursive}, nil)

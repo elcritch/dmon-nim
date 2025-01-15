@@ -5,4 +5,4 @@
 *.exe
 nimcache/
 nimblecache/
-htmldocs/
+/tests/file.txt
