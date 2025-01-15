@@ -69,10 +69,6 @@ var
   dmonInitialized: bool
   dmon: DmonState
 
-iterator watches(dmon: DmonState): DmonWatchState =
-  for i in 0 ..< dmon.numWatches:
-    yield dmon.watches[i]
-
 proc fsEventCallback(
     streamRef: FSEventStreamRef,
     userData: pointer,
@@ -201,16 +197,19 @@ proc monitorThread() {.thread.} =
 
     notice "started thread loop"
     while not dmon.quit:
+      os.sleep(1_000)
       if dmon.numWatches == 0:
-        os.sleep(10)
+        release(dmon.threadLock)
+        debug "monitorThread: no numWatches: "
         continue
 
       withLock(dmon.threadLock):
         # debug "processing watches ", numWatches = dmon.numWatches
 
-        for watch in dmon.watches():
+        for i in 0 ..< dmon.numWatches:
+          let watch = dmon.watches[i]
           if not watch.init:
-            info "initialize watch ", watch = watch.repr
+            info "initialize watch ", i = i, watch = watch.repr
             assert(not watch.fsEvStreamRef.pointer.isNil)
             FSEventStreamScheduleWithRunLoop(
               watch.fsEvStreamRef, dmon.cfLoopRef, kCFRunLoopDefaultMode
