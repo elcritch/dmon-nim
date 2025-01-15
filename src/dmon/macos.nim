@@ -8,7 +8,8 @@ import std/tables
 import std/paths
 import std/private/globs
 import std/atomics
-import chronicles
+
+import logging
 
 # MacOS-specific imports
 {.passL: "-framework CoreServices -framework CoreFoundation".}
