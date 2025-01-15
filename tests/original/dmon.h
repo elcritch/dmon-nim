@@ -1707,7 +1707,6 @@ DMON_API_IMPL dmon_watch_id dmon_watch(const char* rootdir,
                                                  cf_dirarr, kFSEventStreamEventIdSinceNow, 0.25,
                                                  kFSEventStreamCreateFlagFileEvents);
 
-
     CFRelease(cf_dirarr);
     CFRelease(cf_dir);
 

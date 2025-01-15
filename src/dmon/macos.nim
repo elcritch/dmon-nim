@@ -116,7 +116,7 @@ proc fsEventCallback(
     dmon.events.add(ev)
 
 proc processEvents() =
-  debug "processing processEvents ", eventsLen = dmon.events.len
+  trace "processing processEvents ", eventsLen = dmon.events.len
   for i in 0 ..< dmon.events.len:
     var ev = addr dmon.events[i]
     if ev.skip:
@@ -222,7 +222,7 @@ proc monitorThread() {.thread.} =
             watch.init = true
 
         let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
-        debug "CFRunLoopRunInMode result: ", res = res
+        trace "CFRunLoopRunInMode result: ", res = res
         processEvents()
 
       # release(dmon.threadLock)
@@ -360,7 +360,8 @@ proc watchDmon*(
       fsEventCallback, # Callback function
       addr ctx, # Context with watch ID
       cfPaths, # Array of paths to watch
-      FSEventStreamEventId(0), # kFSEventStreamEventIdSinceNow, # Start from now
+      kFSEventStreamEventIdSinceNow, # Start from now
+      # FSEventStreamEventId(0), # kFSEventStreamEventIdSinceNow, # Start from now
       0.25, # Latency in seconds
       flags, # File-level events
     )
