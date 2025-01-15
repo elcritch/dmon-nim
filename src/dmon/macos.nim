@@ -244,7 +244,7 @@ proc initDmon*() =
   initLock(dmon.threadLock)
   initCond(dmon.threadSem)
 
-  dmon.cfAllocRef = createDefaultCFAllocator()
+  dmon.cfAllocRef = createBasicDefaultCFAllocator()
   echo "cfAllocRef: ", dmon.cfAllocRef.repr
 
   createThread(dmon.threadHandle, monitorThread)
