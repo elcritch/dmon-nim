@@ -278,6 +278,7 @@ proc watchDmon*(
   assert(dmonInitialized)
   assert(not rootdir.isEmptyOrWhitespace)
   assert(watchCb != nil)
+  let rootdir = rootdir.absolutePath
 
   notice "watchDmon: starting"
   # dmon.modifyWatches.store(1)
@@ -308,7 +309,8 @@ proc watchDmon*(
     if not dirExists(rootdir):
       warn "Could not open/read directory: ", rootdir
       dec dmon.numWatches
-      return DmonWatchId(0)
+      # return DmonWatchId(0)
+      raise newException(KeyError, "could not open/read root directory: " & rootdir)
 
     # Handle symlinks
     var finalPath = rootdir
@@ -406,7 +408,12 @@ when isMainModule:
 
   initDmon()
   echo("waiting for changes ..")
-  let root = "./tmp/".absolutePath
+  let args = commandLineParams()
+  let root = 
+    if args.len() == 0:
+      "./test/"
+    else:
+      args[0]
   discard watchDmon(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(30_000)
