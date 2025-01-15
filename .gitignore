@@ -1,0 +1,8 @@
+*
+!*.*
+!*/
+*.dll
+*.exe
+nimcache/
+nimblecache/
+htmldocs/
