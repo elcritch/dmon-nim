@@ -211,7 +211,6 @@ proc monitorThread() {.thread.} =
         # debug "processing watches ", numWatches = dmon.numWatches
 
         for watch in dmon.watchStates():
-          debug "monitorThread: no numWatches: "
           if not watch.init:
             info "initialize watch ", watch = watch.repr
             assert(not watch.fsEvStreamRef.pointer.isNil)
