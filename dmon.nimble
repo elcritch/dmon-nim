@@ -12,5 +12,5 @@ srcDir        = "src"
 requires "nim >= 2.0"
 requires "macosutils >= 0.1.0"
 requires "chronicles >= 0.10.0"
-requires "https://github.com/elcritch/macosutils/ >= 0.2.0"
+requires "https://github.com/elcritch/macosutils"
 
