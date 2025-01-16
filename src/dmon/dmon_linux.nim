@@ -165,6 +165,7 @@ proc processEvents(events: seq[FileEvent]) =
 const MaxWatches = 8192
 
 proc processWatches() =
+  debug "monitor: processWatches "
 
   # setup watches / readfds
   # var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
@@ -182,7 +183,7 @@ proc processWatches() =
   timeout.tv_usec = Suseconds(500_000) # 100ms timeout
 
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
-    trace "monitor: select readfds "
+    debug "monitor: select readfds "
     for watch in dmonInst.watchStates():
       info "process watch ", watch = watch.repr
       assert watch != nil
@@ -190,56 +191,22 @@ proc processWatches() =
         debug "inotify isset: ", watchFd = watch.fd
 
         var events: array[MaxWatches, byte]  # event buffer
-        while (let n = read(watch.fd, addr events, MaxWatches); n) > 0:  # blocks until any events have been read
+        while true:
+          let n = read(watch.fd, addr events, MaxWatches)
+          if n <= 0:
+            debug "processWatches: inotify events: ", watchId = watch.fd
+            break
+          debug "processWatches: inotify events: ", watchFd = watch.fd
+          # blocks until any events have been read
           for iev in inotify_events(addr events, n):
             let watchId = iev[].wd
             let mask = iev[].mask
             let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
-            debug "inotify events: ", watchId = watchId, mask = mask, name = name
+            debug "processWatches: inotify events: ", watchId = watchId, mask = mask, name = name
             let subdir = watch.findSubdir(watchId)
 
             if subdir.len > 0:
               let filepath = subdir / name
-              
-              # if dmonInst.events.len == 0:
-              #   microSecsElapsed = 0
-                
-              var event = FileEvent(
-                filePath: filepath,
-                mask: iev.mask,
-                cookie: iev.cookie,
-                watchId: watch.id,
-                skip: false
-              )
-              dmonInst.events.add(event)
-
-      when false:
-          var idx = 0
-          # read events
-          # ssize_t len = read(watch->fd, buff, ((sizeof(struct inotify_event) + LINUX_PATH_MAX) * 1024));
-          let bytesRead  = read(watch.fd.cint, addr buffer[0],
-                                sizeof((InotifyEvent, array[LINUX_PATH_MAX, char])) * 1024)
-          # let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
-          let cnt = bytesRead div sizeof(InotifyEvent)
-          info "process watch fd ", fd = watch.fd, bytesRead = bytesRead, cnt = cnt, sizeInotify = sizeof(InotifyEvent)
-          
-          if bytesRead <= 0:
-            continue
-
-          assert cnt <= 1024
-
-          for idx in 0 ..< cnt:
-            let item = buffer[cnt]
-            debug "item", item = buffer[cnt].repr
-            let iev = item[0]
-            debug "item", item = item.repr
-            # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
-            # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
-            let wd = iev.wd
-            let subdir = watch.findSubdir(wd)
-            
-            if subdir.len > 0:
-              let filepath = subdir & $cast[cstring](addr buffer[cnt])
               
               # if dmonInst.events.len == 0:
               #   microSecsElapsed = 0
