@@ -33,7 +33,7 @@ type
     userData: pointer,
   )
 
-  FsEvent* = ref object of RootObj
+  FileEvent* = ref object of RootObj
     filepath*: string
     watchId*: WatchId
     skip*: bool
@@ -57,7 +57,7 @@ type
     initialized*: bool
     watches*: array[64, WatchState]
     freeList*: array[64, int]
-    events*: seq[FsEvent]
+    events*: seq[FileEvent]
     numWatches*: int
     threadHandle*: Thread[void]
     threadLock*: Lock

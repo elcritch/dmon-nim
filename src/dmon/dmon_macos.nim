@@ -44,7 +44,7 @@ proc fsEventCallback(
       watchId = watchId.int,
       path = path
 
-    var ev = FsEvent()
+    var ev = FileEvent()
     # Convert path to unix style and make relative to watch root
     var absPath = nativeToUnixPath(path)
     let watchRoot = watch.rootdir.toLowerAscii
@@ -61,7 +61,7 @@ proc fsEventCallback(
     debug "fsEventCallback:event:adding: ", ev = ev.repr
     dmon.events.add(ev)
 
-proc processEvents(events: seq[FsEvent]) =
+proc processEvents(events: seq[FileEvent]) =
   trace "processing processEvents ", eventsLen = dmon.events.len
   for i, ev in events:
     if ev.skip:
