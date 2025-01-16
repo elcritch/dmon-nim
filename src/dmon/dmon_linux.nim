@@ -1,6 +1,7 @@
 import std/posix
 import std/[os, strutils, paths]
 import std/monotimes
+import std/sequtils
 import std/times
 import std/locks
 import std/inotify
@@ -190,9 +191,13 @@ proc processWatches() =
     return
 
   var starttm = getMonoTime()
+  var watches: seq[WatchState]
   withLock(dmonInst.threadLock):
+    watches = dmonInst.watchStates().toSeq()
+
+  block:
     trace "monitor: select readfds "
-    for watch in dmonInst.watchStates():
+    for watch in watches:
       trace "process watch ", watch = watch.repr
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
@@ -200,6 +205,7 @@ proc processWatches() =
 
         var events: array[MaxWatches, byte]  # event buffer
         while true:
+          # if not dmonInst.quit:
           let n = read(watch.fd, addr events, MaxWatches)
           if n <= 0:
             trace "processWatches: inotify events: ", watchFd = watch.fd
