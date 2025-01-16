@@ -33,7 +33,7 @@ proc main() =
   )
   echo "watchId:repr: ", watchId.repr
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
-  os.sleep(10_000)
+  os.sleep(30_000)
   watchId.unwatch()
   echo("done ..")
   deinitDmon()
