@@ -41,6 +41,190 @@ proc findSubdir(watch: WatchState, wd: cint): string =
       return watch.subdirs[i].rootDir
   return ""
 
+# Process inotify events
+proc processEvents() =
+  for i in 0..<dmon.events.len:
+    var ev = addr dmon.events[i]
+    if ev.skip:
+      continue
+
+    # Handle MODIFY events
+    if (ev.mask and IN_MODIFY) != 0:
+      # Coalesce multiple MODIFY events
+      for j in (i+1)..<dmon.events.len:
+        let checkEv = addr dmon.events[j]
+        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+          ev.skip = true
+          break
+        elif (ev.mask and IN_ISDIR) != 0 and (checkEv.mask and (IN_ISDIR or IN_MODIFY)) != 0:
+          # Handle directory modifications
+          var evPath = ev.filePath.strip(trailing = true, chars = {'/'})
+          var checkPath = checkEv.filePath.strip(trailing = true, chars = {'/'})
+          if evPath == checkPath:
+            ev.skip = true
+            break
+
+    # Handle CREATE events
+    elif (ev.mask and IN_CREATE) != 0:
+      block outer:
+        for j in (i+1)..<dmon.events.len:
+          let checkEv = addr dmon.events[j]
+          if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.filePath == checkEv.filePath:
+            # Look for matching MOVED_TO event
+            for k in (j+1)..<dmon.events.len:
+              let thirdEv = addr dmon.events[k]
+              if (thirdEv.mask and IN_MOVED_TO) != 0 and checkEv.cookie == thirdEv.cookie:
+                thirdEv.mask = IN_MODIFY
+                ev.skip = true
+                checkEv.skip = true
+                break outer
+          elif (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+            checkEv.skip = true
+            
+    # Handle MOVED_FROM events
+    elif (ev.mask and IN_MOVED_FROM) != 0:
+      var moveValid = false
+      for j in (i+1)..<dmon.events.len:
+        let checkEv = addr dmon.events[j]
+        if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
+          moveValid = true
+          break
+      if not moveValid:
+        ev.mask = IN_DELETE
+
+    # Handle MOVED_TO events
+    elif (ev.mask and IN_MOVED_TO) != 0:
+      var moveValid = false
+      for j in 0..<i:
+        let checkEv = addr dmon.events[j]
+        if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.cookie == checkEv.cookie:
+          moveValid = true
+          break
+      if not moveValid:
+        ev.mask = IN_CREATE
+
+    # Handle DELETE events
+    elif (ev.mask and IN_DELETE) != 0:
+      for j in (i+1)..<dmon.events.len:
+        let checkEv = addr dmon.events[j]
+        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+          checkEv.skip = true
+          break
+
+  # Process the events
+  for i in 0..<dmon.events.len:
+    let ev = addr dmon.events[i]
+    if ev.skip:
+      continue
+
+    let watch = dmon.watches[int(ev.watchId) - 1]
+    if watch == nil or watch.watchCb == nil:
+      continue
+
+    if (ev.mask and IN_CREATE) != 0:
+      if (ev.mask and IN_ISDIR) != 0 and wfRecursive in watch.watchFlags:
+        var watchDir = watch.rootDir & ev.filePath & "/"
+        let inotifyMask = IN_MOVED_TO or IN_CREATE or IN_MOVED_FROM or IN_DELETE or IN_MODIFY
+        
+        let wd = inotify_add_watch(watch.fd.cint, watchDir.cstring, inotifyMask.cuint)
+        assert wd != -1
+
+        var subdir = WatchSubdir(rootDir: watchDir)
+        if subdir.rootDir.startsWith(watch.rootDir):
+          subdir.rootDir = subdir.rootDir[watch.rootDir.len..^1]
+
+        watch.subdirs.add subdir
+        watch.wds.add wd
+
+      watch.watchCb(ev.watchId, aCreate, watch.rootDir, ev.filePath, "", watch.userData)
+
+    elif (ev.mask and IN_MODIFY) != 0:
+      watch.watchCb(ev.watchId, aModify, watch.rootDir, ev.filePath, "", watch.userData)
+
+    elif (ev.mask and IN_MOVED_FROM) != 0:
+      for j in (i+1)..<dmon.events.len:
+        let checkEv = addr dmon.events[j]
+        if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
+          watch.watchCb(checkEv.watchId, aMove, watch.rootDir,
+                       checkEv.filePath, ev.filePath, watch.userData)
+          break
+
+    elif (ev.mask and IN_DELETE) != 0:
+      watch.watchCb(ev.watchId, aDelete, watch.rootDir, ev.filePath, "", watch.userData)
+
+  dmon.events.setLen(0)
+
+proc monitorThread() {.thread.} =
+  const BufferSize = sizeof(InotifyEvent) * 1024
+  var buffer: array[BufferSize, byte]
+  
+  var startTime: Time
+  var microSecsElapsed: int64 = 0
+  startTime = getTime()
+
+  while not dmon.quit:
+    sleep(10) # Sleep for 10ms
+    
+    if dmon.numWatches == 0 or not dmon.mutex.tryLock():
+      continue
+
+    var readfds: TFdSet
+    FD_ZERO(readfds)
+    
+    # Add all watch file descriptors to the set
+    for i in 0..<dmon.numWatches:
+      let watch = dmon.watches[i]
+      if watch != nil:
+        FD_SET(watch.fd.cint, readfds)
+
+    var timeout: Timeval
+    timeout.tv_sec = Time(0)
+    timeout.tv_usec = Suseconds(100_000) # 100ms timeout
+
+    if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+      for i in 0..<dmon.numWatches:
+        let watch = dmon.watches[i]
+        if watch != nil and FD_ISSET(watch.fd.cint, readfds):
+          var offset = 0
+          let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
+          
+          if bytesRead <= 0:
+            continue
+
+          while offset < bytesRead:
+            let iev = cast[ptr InotifyEvent](addr buffer[offset])
+            let subdir = watch.findSubdir(iev.wd)
+            
+            if subdir.len > 0:
+              let filepath = subdir & $cast[cstring](addr buffer[offset + sizeof(InotifyEvent)])
+              
+              if dmon.events.len == 0:
+                microSecsElapsed = 0
+                
+              var event = InotifyEvent(
+                filePath: filepath,
+                mask: iev.mask,
+                cookie: iev.cookie,
+                watchId: watch.id,
+                skip: false
+              )
+              dmon.events.add(event)
+
+            offset += sizeof(InotifyEvent) + iev.len
+
+    # Check elapsed time and process events if needed
+    let currentTime = getTime()
+    let dt = (currentTime - startTime).inMicroseconds
+    startTime = currentTime
+    microSecsElapsed += dt
+    
+    if microSecsElapsed > 100_000 and dmon.events.len > 0:
+      processEvents()
+      microSecsElapsed = 0
+
+    dmon.mutex.unlock()
+
+
 proc unwatchState(watch: var WatchState) =
   if watch != nil:
     discard close(watch.fd)
