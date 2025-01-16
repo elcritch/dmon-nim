@@ -227,24 +227,8 @@ proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
     
-    withLock(dmon.threadLock):
-      notice "signal lock"
-      signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
+    threadExec()
 
-    # var startTime: times.Time
-    # var microSecsElapsed: int64 = 0
-    # startTime = getTime()
-
-    notice "started thread loop"
-    while not dmon.quit:
-      if dmon.numWatches == 0:
-        os.sleep(100)
-        # debug "monitorThread: no numWatches: "
-        continue
-      withLock(dmon.threadLock):
-        processWatches()
-
-      sleep(10) # Sleep for 10ms
 
 
 proc unwatchState*(watch: var WatchState) =

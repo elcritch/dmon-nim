@@ -150,7 +150,7 @@ proc watchInit*(
 var
   dmon*: DmonState
 
-template threadExec() =
+template threadExec*() =
   notice "starting thread"
   withLock(dmon.threadLock):
     notice "signal lock"
