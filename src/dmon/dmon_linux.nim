@@ -44,17 +44,18 @@ proc findSubdir(watch: WatchState, wd: cint): string =
   return ""
 
 # Process inotify events
-proc processEvents() =
-  for i in 0..<dmon.events.len():
-    var ev = dmon.events[i]
+proc processEvents(events: seq[FileEvent]) =
+  trace "processing processEvents ", eventsLen = dmon.events.len
+  for i in 0..<events.len():
+    var ev = events[i]
     if ev.skip:
       continue
 
     # Handle MODIFY events
     if (ev.mask and IN_MODIFY) != 0:
       # Coalesce multiple MODIFY events
-      for j in (i+1)..<dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for j in (i+1)..<events.len:
+        let checkEv = events[j]
         if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
           ev.skip = true
           break
@@ -69,12 +70,12 @@ proc processEvents() =
     # Handle CREATE events
     elif (ev.mask and IN_CREATE) != 0:
       block outer:
-        for j in (i+1)..<dmon.events.len:
-          let checkEv = addr dmon.events[j]
+        for j in (i+1)..<events.len:
+          let checkEv = events[j]
           if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.filePath == checkEv.filePath:
             # Look for matching MOVED_TO event
-            for k in (j+1)..<dmon.events.len:
-              let thirdEv = addr dmon.events[k]
+            for k in (j+1)..<events.len:
+              let thirdEv = events[k]
               if (thirdEv.mask and IN_MOVED_TO) != 0 and checkEv.cookie == thirdEv.cookie:
                 thirdEv.mask = IN_MODIFY
                 ev.skip = true
@@ -86,8 +87,8 @@ proc processEvents() =
     # Handle MOVED_FROM events
     elif (ev.mask and IN_MOVED_FROM) != 0:
       var moveValid = false
-      for j in (i+1)..<dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for j in (i+1)..<events.len:
+        let checkEv = events[j]
         if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
           moveValid = true
           break
@@ -98,7 +99,7 @@ proc processEvents() =
     elif (ev.mask and IN_MOVED_TO) != 0:
       var moveValid = false
       for j in 0..<i:
-        let checkEv = addr dmon.events[j]
+        let checkEv = events[j]
         if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.cookie == checkEv.cookie:
           moveValid = true
           break
@@ -107,8 +108,8 @@ proc processEvents() =
 
     # Handle DELETE events
     elif (ev.mask and IN_DELETE) != 0:
-      for j in (i+1)..<dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for j in (i+1)..<events.len:
+        let checkEv = events[j]
         if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
           checkEv.skip = true
           break
