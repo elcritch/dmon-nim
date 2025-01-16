@@ -2,65 +2,10 @@ import std/[strutils, locks]
 
 import winim/lean
 
-type
-  DmonWatchId* = distinct uint32
+import dmontypes
 
-  DmonWatchFlags* = distinct uint32
-
-const
-  DMON_WATCHFLAGS_RECURSIVE* = DmonWatchFlags(0x1)
-  DMON_WATCHFLAGS_FOLLOW_SYMLINKS* = DmonWatchFlags(0x2)
-  DMON_WATCHFLAGS_OUTOFSCOPE_LINKS* = DmonWatchFlags(0x4)
-  DMON_WATCHFLAGS_IGNORE_DIRECTORIES* = DmonWatchFlags(0x8)
-
-type
-  DmonAction* = enum
-    dmonActionCreate = 1,
-    dmonActionDelete,
-    dmonActionModify,
-    dmonActionMove
-
-  DmonWatchCallback* = proc(watchId: DmonWatchId, action: DmonAction,
-                           rootdir, filepath, oldfilepath: string,
-                           userData: pointer) {.nimcall.}
-
-  DmonWin32Event = object
-    filepath: array[260, char]
-    action: DWORD
-    watchId: DmonWatchId
-    skip: bool
-
-  DmonWatchState = object
-    id: DmonWatchId
-    overlapped: OVERLAPPED
-    dirHandle: HANDLE
-    buffer: array[64512, byte]
-    notifyFilter: DWORD
-    watchCb: DmonWatchCallback
-    watchFlags: DmonWatchFlags
-    userData: pointer
-    rootdir: array[260, char]
-    oldFilepath: array[260, char]
-
-  DmonState = object
-    numWatches: int
-    watches: array[64, ptr DmonWatchState]
-    freelist: array[64, int32]
-    threadHandle: HANDLE
-    mutex: Lock
-    modifyWatches: int32
-    events: seq[DmonWin32Event]
-    quit: bool
-
-var
-  dmonInit: bool
-  dmon: DmonState
-
-proc toUnixPath(path: string): string =
-  result = path.replace('\\', '/')
-
-proc refreshWatch(watch: ptr DmonWatchState): bool =
-  let recursive = (watch.watchFlags.uint32 and DMON_WATCHFLAGS_RECURSIVE.uint32) != 0
+proc refreshWatch(watch: var WatchState): bool =
+  let recursive = watch.watchFlags.contains(Recursive)
   ReadDirectoryChangesW(
     watch.dirHandle,
     watch.buffer[0].addr,

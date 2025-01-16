@@ -10,11 +10,12 @@ import logging
 when defined(macosx):
   import macosutils/cfcore
   import macosutils/fsstream
-
-when defined(linux):
+elif defined(linux):
   type
     WatchSubdir* = object
       rootDir*: string
+elif defined(windows):
+  import winim/lean
 
 type
   WatchId* = distinct uint32
@@ -49,6 +50,9 @@ type
     elif defined(linux):
       mask*: uint32
       cookie*: uint32
+    elif defined(windows):
+      filepath*: array[260, char]
+      action*: DWORD
 
   WatchState* = ref object of RootObj
     id*: WatchId
@@ -64,6 +68,12 @@ type
       fd*: FileHandle
       subdirs*: seq[WatchSubdir]
       wds*: seq[cint]
+    elif defined(windows):
+      oldFilepath*: array[260, char]
+      notifyFilter*: DWORD
+      overlapped*: OVERLAPPED
+      dirHandle*: HANDLE
+      buffer*: array[64512, byte]
 
   DmonState* = object
     initialized*: bool
