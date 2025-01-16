@@ -34,13 +34,16 @@ type
   )
 
   FileEvent* = ref object of RootObj
-    filepath*: string
     watchId*: WatchId
+    filepath*: string
     skip*: bool
     when defined(macosx):
       eventId*: FSEventStreamEventId
       eventFlags*: set[FSEventStreamEventFlag]
       moveValid*: bool
+    elif defined(linux):
+      mask: uint32
+      cookie: uint32
 
   WatchState* = ref object of RootObj
     id*: WatchId

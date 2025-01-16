@@ -11,13 +11,6 @@ type
   WatchSubdir = object
     rootDir: string
 
-  InotifyEvent = object
-    filePath: string
-    mask: uint32
-    cookie: uint32
-    watchId: WatchId
-    skip: bool
-
   WatchState = ref object
     id: WatchId
     fd: FileHandle
