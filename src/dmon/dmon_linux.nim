@@ -167,66 +167,68 @@ proc monitorThread() {.thread.} =
   startTime = getTime()
 
   while not dmon.quit:
-    sleep(10) # Sleep for 10ms
-    
-    if dmon.numWatches == 0 or not dmon.mutex.tryLock():
+    if dmon.numWatches == 0:
+      os.sleep(100)
+      # debug "monitorThread: no numWatches: "
       continue
+      
 
-    var readfds: TFdSet
-    FD_ZERO(readfds)
-    
-    # Add all watch file descriptors to the set
-    for i in 0..<dmon.numWatches:
-      let watch = dmon.watches[i]
-      if watch != nil:
-        FD_SET(watch.fd.cint, readfds)
-
-    var timeout: Timeval
-    timeout.tv_sec = Time(0)
-    timeout.tv_usec = Suseconds(100_000) # 100ms timeout
-
-    if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+    withLock(dmon.threadLock):
+      var readfds: TFdSet
+      FD_ZERO(readfds)
+      
+      # Add all watch file descriptors to the set
       for i in 0..<dmon.numWatches:
         let watch = dmon.watches[i]
-        if watch != nil and FD_ISSET(watch.fd.cint, readfds):
-          var offset = 0
-          let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
-          
-          if bytesRead <= 0:
-            continue
+        if watch != nil:
+          FD_SET(watch.fd.cint, readfds)
 
-          while offset < bytesRead:
-            let iev = cast[ptr InotifyEvent](addr buffer[offset])
-            let subdir = watch.findSubdir(iev.wd)
+      var timeout: Timeval
+      timeout.tv_sec = Time(0)
+      timeout.tv_usec = Suseconds(100_000) # 100ms timeout
+
+      if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+        for i in 0..<dmon.numWatches:
+          let watch = dmon.watches[i]
+          if watch != nil and FD_ISSET(watch.fd.cint, readfds):
+            var offset = 0
+            let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
             
-            if subdir.len > 0:
-              let filepath = subdir & $cast[cstring](addr buffer[offset + sizeof(InotifyEvent)])
+            if bytesRead <= 0:
+              continue
+
+            while offset < bytesRead:
+              let iev = cast[ptr InotifyEvent](addr buffer[offset])
+              let subdir = watch.findSubdir(iev.wd)
               
-              if dmon.events.len == 0:
-                microSecsElapsed = 0
+              if subdir.len > 0:
+                let filepath = subdir & $cast[cstring](addr buffer[offset + sizeof(InotifyEvent)])
                 
-              var event = InotifyEvent(
-                filePath: filepath,
-                mask: iev.mask,
-                cookie: iev.cookie,
-                watchId: watch.id,
-                skip: false
-              )
-              dmon.events.add(event)
+                if dmon.events.len == 0:
+                  microSecsElapsed = 0
+                  
+                var event = InotifyEvent(
+                  filePath: filepath,
+                  mask: iev.mask,
+                  cookie: iev.cookie,
+                  watchId: watch.id,
+                  skip: false
+                )
+                dmon.events.add(event)
 
-            offset += sizeof(InotifyEvent) + iev.len
+              offset += sizeof(InotifyEvent) + iev.len
 
-    # Check elapsed time and process events if needed
-    let currentTime = getTime()
-    let dt = (currentTime - startTime).inMicroseconds
-    startTime = currentTime
-    microSecsElapsed += dt
-    
-    if microSecsElapsed > 100_000 and dmon.events.len > 0:
-      processEvents()
-      microSecsElapsed = 0
+      # Check elapsed time and process events if needed
+      let currentTime = getTime()
+      let dt = (currentTime - startTime).inMicroseconds
+      startTime = currentTime
+      microSecsElapsed += dt
+      
+      if microSecsElapsed > 100_000 and dmon.events.len > 0:
+        processEvents()
+        microSecsElapsed = 0
 
-    dmon.mutex.unlock()
+    sleep(10) # Sleep for 10ms
 
 
 proc unwatchState(watch: var WatchState) =
