@@ -30,28 +30,29 @@ type
   )
 
   DmonFsEvent* = ref object of RootObj
-    filepath: string
-    watchId: DmonWatchId
-    skip: bool
+    filepath*: string
+    watchId*: DmonWatchId
+    skip*: bool
 
   DmonWatchState* = ref object of RootObj
-    id: DmonWatchId
-    watchFlags: set[DmonWatchFlags]
-    watchCb: DmonWatchCallback
-    userData: pointer
-    rootdir: string
-    rootdirUnmod: string
-    init: bool
+    id*: DmonWatchId
+    watchFlags*: set[DmonWatchFlags]
+    watchCb*: DmonWatchCallback
+    userData*: pointer
+    rootdir*: string
+    rootdirUnmod*: string
+    init*: bool
 
-  DmonState = object
-    watches: array[64, DmonWatchState]
-    freeList: array[64, int]
-    events: seq[DmonFsEvent]
-    numWatches: int
-    threadHandle: Thread[void]
-    threadLock: Lock
-    threadSem: Cond
-    quit: bool
+  DmonState*[T] = object
+    watches*: array[64, DmonWatchState]
+    freeList*: array[64, int]
+    events*: seq[DmonFsEvent]
+    numWatches*: int
+    threadHandle*: Thread[void]
+    threadLock*: Lock
+    threadSem*: Cond
+    quit*: bool
+    osState*: T
 
 proc watchDmon*(
     dmon: var DmonState,

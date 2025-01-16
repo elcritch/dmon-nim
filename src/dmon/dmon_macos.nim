@@ -24,7 +24,7 @@ type
   MacOSWatchState* = ref object of DmonWatchState
     fsEvStreamRef: FSEventStreamRef
 
-  MacOSState = object
+  MacOSState* = object
     cfLoopRef: CFRunLoopRef
     cfAllocRef: CFAllocatorRef
 
