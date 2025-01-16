@@ -172,7 +172,7 @@ proc monitorThread() {.thread.} =
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef
 
-proc unwatchState*(watch: WatchState) =
+proc unwatchState(watch: WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
     FSEventStreamStop(watch.fsEvStreamRef)
     FSEventStreamInvalidate(watch.fsEvStreamRef)
@@ -241,7 +241,7 @@ proc unwatch*(id: WatchId) =
   assert(dmon.numWatches > 0)
 
   if dmon.watches[index] != nil:
-    # dmon.modifyWatches.store(1)
+    notice "unwatch", id = id.repr
     withLock dmon.threadLock:
       unwatchState(dmon.watches[index])
       dmon.watches[index] = nil
@@ -251,6 +251,7 @@ proc unwatch*(id: WatchId) =
       dmon.freeList[numFreeList - 1] = index
 
     # dmon.modifyWatches.store(0)
+  notice "unwatch done"
 
 when isMainModule:
   let cb: WatchCallback = proc(
@@ -277,7 +278,7 @@ when isMainModule:
       args[0]
   let watchId = dmon.watch(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
-  os.sleep(30_000)
+  os.sleep(10_000)
   watchId.unwatch()
   echo("done ..")
   deinitDmon()
