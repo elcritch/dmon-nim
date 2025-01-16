@@ -13,6 +13,47 @@ import std/posix
 import macosutils/cfcore
 import macosutils/fsstream
 
+import dmontypes
+
+type
+  DmonFsEvent* = ref object
+    filepath: string
+    eventId: FSEventStreamEventId
+    eventFlags: set[FSEventStreamEventFlag]
+    watchId: DmonWatchId
+    skip: bool
+    moveValid: bool
+
+  DmonWatchState* = ref object
+    id: DmonWatchId
+    watchFlags: set[DmonWatchFlags]
+    watchCb: DmonWatchCallback
+    userData: pointer
+    rootdir: string
+    rootdirUnmod: string
+    init: bool
+    fsEvStreamRef: FSEventStreamRef
+
+  DmonState = object
+    watches: array[64, DmonWatchState]
+    freeList: array[64, int]
+    events: seq[DmonFsEvent]
+    numWatches: int
+    # modifyWatches: Atomic[int]
+    threadHandle: Thread[void]
+    threadLock: Lock
+    threadSem: Cond
+    cfLoopRef: CFRunLoopRef
+    cfAllocRef: CFAllocatorRef
+    quit: bool
+
+var
+  dmonInitialized: bool
+  dmon: DmonState
+
+iterator watchStates(dmon: DmonState): DmonWatchState =
+  for i in 0 ..< dmon.numWatches:
+    yield dmon.watches[i]
 
 proc fsEventCallback(
     streamRef: FSEventStreamRef,
