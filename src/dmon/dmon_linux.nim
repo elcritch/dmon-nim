@@ -175,11 +175,10 @@ proc processWatches() =
   timeout.tv_sec = posix.Time(0)
   timeout.tv_usec = Suseconds(100_000) # 100ms timeout
 
-  debug "monitor: ", item = item.repr
+  debug "monitor: "
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
     for watch in dmon.watchStates():
       info "initialize watch ", watch = watch.repr
-      let watch = dmon.watches[i]
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
         var idx = 0

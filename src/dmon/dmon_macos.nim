@@ -153,22 +153,8 @@ proc monitorThread() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
     dmon.cfLoopRef = CFRunLoopGetCurrent()
-    withLock(dmon.threadLock):
-      notice "signal lock"
-      signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
 
-    notice "started thread loop"
-    while not dmon.quit:
-      if dmon.numWatches == 0:
-        os.sleep(100)
-        # debug "monitorThread: no numWatches: "
-        continue
-
-      withLock(dmon.threadLock):
-        # debug "processing watches ", numWatches = dmon.numWatches
-        processWatches()
-
-      os.sleep(10)
+    threadExec()
 
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef

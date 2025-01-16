@@ -150,6 +150,26 @@ proc watchInit*(
 var
   dmon*: DmonState
 
+template threadExec() =
+  notice "starting thread"
+  withLock(dmon.threadLock):
+    notice "signal lock"
+    signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
+
+  notice "started thread loop"
+  while not dmon.quit:
+    if dmon.numWatches == 0:
+      os.sleep(100)
+      # debug "monitorThread: no numWatches: "
+      continue
+
+    withLock(dmon.threadLock):
+      # debug "processing watches ", numWatches = dmon.numWatches
+      processWatches()
+
+    os.sleep(10)
+
+
 proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: var WatchState) {.nimcall.}) =
   assert(dmon.initialized)
   assert(uint32(id) > 0)
