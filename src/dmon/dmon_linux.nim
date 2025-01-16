@@ -229,8 +229,6 @@ proc monitorThread*() {.thread.} =
     
     threadExec()
 
-
-
 proc unwatchState*(watch: var WatchState) =
   if watch != nil:
     discard close(watch.fd)
