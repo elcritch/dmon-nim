@@ -12,9 +12,9 @@ when defined(macosx):
   import macosutils/fsstream
 
 type
-  DmonWatchId* = distinct uint32
+  WatchId* = distinct uint32
 
-  DmonWatchFlags* = enum
+  WatchFlags* = enum
     Recursive = 0x1
     FollowSymlinks = 0x2
     OutOfScopeLinks = 0x4
@@ -27,7 +27,7 @@ type
     Move
 
   DmonWatchCallback* = proc(
-    watchId: DmonWatchId,
+    watchId: WatchId,
     action: DmonAction,
     rootdir, filepath, oldfilepath: string,
     userData: pointer,
@@ -35,7 +35,7 @@ type
 
   DmonFsEvent* = ref object of RootObj
     filepath*: string
-    watchId*: DmonWatchId
+    watchId*: WatchId
     skip*: bool
     when defined(macosx):
       eventId*: FSEventStreamEventId
@@ -43,8 +43,8 @@ type
       moveValid*: bool
 
   DmonWatchState* = ref object of RootObj
-    id*: DmonWatchId
-    watchFlags*: set[DmonWatchFlags]
+    id*: WatchId
+    watchFlags*: set[WatchFlags]
     watchCb*: DmonWatchCallback
     userData*: pointer
     rootdir*: string
@@ -74,7 +74,7 @@ proc watchDmonInit*(
     dmon: var DmonState,
     rootdir: string,
     watchCb: DmonWatchCallback,
-    flags: set[DmonWatchFlags],
+    flags: set[WatchFlags],
     userData: pointer,
 ): DmonWatchState =
   assert(not rootdir.isEmptyOrWhitespace)
@@ -100,7 +100,7 @@ proc watchDmonInit*(
     inc dmon.numWatches
 
     let watch: DmonWatchState = dmon.watches[id - 1]
-    watch.id = DmonWatchId(id)
+    watch.id = WatchId(id)
     watch.watchFlags = flags
     watch.watchCb = watchCb
     watch.userData = userData
@@ -109,12 +109,12 @@ proc watchDmonInit*(
     if not dirExists(rootdir):
       warn "Could not open/read directory: ", rootdir
       dec dmon.numWatches
-      # return DmonWatchId(0)
+      # return WatchId(0)
       raise newException(KeyError, "could not open/read root directory: " & rootdir)
 
     # Handle symlinks
     var finalPath = rootdir
-    if flags.contains(DmonWatchFlags.FollowSymlinks):
+    if flags.contains(WatchFlags.FollowSymlinks):
       try:
         finalPath = expandSymlink(rootdir)
       except OSError:

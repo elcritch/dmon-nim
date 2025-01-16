@@ -27,7 +27,7 @@ proc fsEventCallback(
     eventFlags: ptr FSEventStreamEventFlags,
     eventIds: ptr FSEventStreamEventId,
 ) {.cdecl.} =
-  let watchId = cast[DmonWatchId](userData)
+  let watchId = cast[WatchId](userData)
   assert(uint32(watchId) > 0)
 
   notice "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int, streamRef = streamRef.pointer.repr
@@ -221,9 +221,9 @@ proc watchDmon*(
     dmon: var DmonState,
     rootdir: string,
     watchCb: DmonWatchCallback,
-    flags: set[DmonWatchFlags],
+    flags: set[WatchFlags],
     userData: pointer,
-): DmonWatchId =
+): WatchId =
   # Create FSEvents stream
   let watch = dmon.watchDmonInit(rootdir, watchCb, flags, userData)
 
@@ -267,10 +267,10 @@ proc watchDmon*(
 
     notice "FSEventStreamCreated ", fsEvStreamRef = watch.fsEvStreamRef.pointer.repr
     # dmon.modifyWatches.store(0)
-    result = DmonWatchId(watch.id)
+    result = WatchId(watch.id)
     notice "watchDmon: done"
 
-proc unwatchDmon*(id: DmonWatchId) =
+proc unwatchDmon*(id: WatchId) =
   assert(dmonInitialized)
   assert(uint32(id) > 0)
 
@@ -293,7 +293,7 @@ proc unwatchDmon*(id: DmonWatchId) =
 
 when isMainModule:
   let cb: DmonWatchCallback = proc(
-      watchId: DmonWatchId,
+      watchId: WatchId,
       action: DmonAction,
       rootdir, filepath, oldfilepath: string,
       userData: pointer,
