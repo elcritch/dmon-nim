@@ -49,13 +49,13 @@ proc unwatchState(watch: var WatchState) =
 # Main watch function
 proc watch*(
     rootDir: string,
-    callback: WatchCallback,
+    watchCb: WatchCallback,
     flags: set[WatchFlags] = {},
     userData: pointer = nil,
 ): WatchId =
   let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
 
-  withLock dmon.mutex:
+  withLock dmon.threadLock:
     # Initialize inotify
     watch.fd = inotify_init().FileHandle
     if watch.fd.cint < 0:
@@ -72,9 +72,9 @@ proc watch*(
     watch.wds.add wd
 
     # Handle recursive watching if requested
-    if wfRecursive in flags:
+    if Recursive in flags:
       watch.watchRecursive(
-        watch.rootDir, watch.fd, inotifyMask.cuint, wfFollowSymlinks in flags
+        watch.rootDir, watch.fd, inotifyMask.cuint, FollowSymlinks in flags
       )
 
     return id
