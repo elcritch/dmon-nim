@@ -185,7 +185,7 @@ proc watch*(
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchId =
-  # Create FSEvents stream
+  ## Create Dmon watch using FSEvents stream
   let watch = dmon.watchInit(rootDir, watchCb, flags, userData)
 
   withLock dmon.threadLock:

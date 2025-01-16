@@ -46,13 +46,13 @@ proc unwatchState(watch: var WatchState) =
     discard close(watch.fd)
     watch = nil
 
-# Main watch function
 proc watch*(
     rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags] = {},
     userData: pointer = nil,
 ): WatchId =
+  ## Create Dmon watch using inotify events
   let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
 
   withLock dmon.threadLock:
