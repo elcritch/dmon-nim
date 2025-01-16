@@ -10,7 +10,7 @@ type WatchSubdir = object
   rootDir: string
 
 proc watchRecursive(
-    dirname: string, fd: FileHandle, mask: uint32, followLinks: bool, watch: WatchState
+    watch: var WatchState, dirname: string, fd: FileHandle, mask: uint32, followLinks: bool
 ) =
   for kind, path in walkDir(dirname):
     var entryValid = false
@@ -76,8 +76,8 @@ proc watch*(
 
     # Handle recursive watching if requested
     if wfRecursive in flags:
-      watchRecursive(
-        watch.rootDir, watch.fd, inotifyMask.cuint, wfFollowSymlinks in flags, watch
+      watch.watchRecursive(
+        watch.rootDir, watch.fd, inotifyMask.cuint, wfFollowSymlinks in flags
       )
 
     return id
