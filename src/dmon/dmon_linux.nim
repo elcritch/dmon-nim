@@ -235,7 +235,7 @@ proc monitorThread*() {.thread.} =
       sleep(10) # Sleep for 10ms
 
 
-proc unwatchState(watch: var WatchState) =
+proc unwatchState*(watch: var WatchState) =
   if watch != nil:
     discard close(watch.fd)
     watch = nil
