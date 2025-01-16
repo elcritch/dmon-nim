@@ -221,6 +221,7 @@ proc processWatches() =
   
   # if microSecsElapsed > 100_000 and dmon.events.len > 0:
   processEvents(move dmon.events)
+  assert dmon.events.len() == 0
   # microSecsElapsed = 0
 
 proc monitorThread*() {.thread.} =
