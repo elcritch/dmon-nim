@@ -119,96 +119,207 @@ static void * stb__sbgrowf(void *arr, int increment, int itemsize)
 
 
 typedef void (_dmon_watch_cb)(dmon_watch_id, dmon_action, const char*, const char*, const char*, void*);
-# 1301 "tests/original/dmon.modified.h"
-typedef struct dmon__fsevent_event {
+# 739 "tests/original/dmon.modified.h"
+typedef struct dmon__watch_subdir {
+    char rootdir[260];
+} dmon__watch_subdir;
+
+typedef struct dmon__inotify_event {
     char filepath[260];
-    uint64_t event_id;
-    long event_flags;
+    uint32_t mask;
+    uint32_t cookie;
     dmon_watch_id watch_id;
     bool skip;
-    bool move_valid;
-} dmon__fsevent_event;
+} dmon__inotify_event;
 
 typedef struct dmon__watch_state {
     dmon_watch_id id;
+    int fd;
     uint32_t watch_flags;
-    FSEventStreamRef fsev_stream_ref;
     _dmon_watch_cb* watch_cb;
     void* user_data;
     char rootdir[260];
-    char rootdir_unmod[260];
-    bool init;
+    dmon__watch_subdir* subdirs;
+    int* wds;
 } dmon__watch_state;
 
 typedef struct dmon__state {
     dmon__watch_state* watches[64];
     int freelist[64];
-    dmon__fsevent_event* events;
+    dmon__inotify_event* events;
     int num_watches;
-    volatile int modify_watches;
     pthread_t thread_handle;
-    dispatch_semaphore_t thread_sem;
     pthread_mutex_t mutex;
-    CFRunLoopRef cf_loop_ref;
-    CFAllocatorRef cf_alloc_ref;
     bool quit;
 } dmon__state;
-
-union dmon__cast_userdata {
-    void* ptr;
-    uint32_t id;
-};
 
 static bool _dmon_init;
 static dmon__state _dmon;
 
-              void* _dmon_cf_malloc(CFIndex size, CFOptionFlags hints, void* info)
+              void _dmon_watch_recursive(const char* dirname, int fd, uint32_t mask,
+                                         bool followlinks, dmon__watch_state* watch)
 {
-    (void)(hints);
-    (void)(info);
-    return malloc(size);
+    struct dirent* entry;
+    DIR* dir = opendir(dirname);
+    assert(dir);
+
+    char watchdir[260];
+
+    while ((entry = readdir(dir)) != NULL) {
+        bool entry_valid = false;
+        if (entry->d_type == DT_DIR) {
+            if (strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".") != 0) {
+                _dmon_strcpy(watchdir, sizeof(watchdir), dirname);
+                _dmon_strcat(watchdir, sizeof(watchdir), entry->d_name);
+                entry_valid = true;
+            }
+        } else if (followlinks && entry->d_type == DT_LNK) {
+            char linkpath[PATH_MAX];
+            _dmon_strcpy(watchdir, sizeof(watchdir), dirname);
+            _dmon_strcat(watchdir, sizeof(watchdir), entry->d_name);
+            char* r = realpath(watchdir, linkpath);
+            (void)(r);
+            assert(r);
+            _dmon_strcpy(watchdir, sizeof(watchdir), linkpath);
+            entry_valid = true;
+        }
+
+
+        if (entry_valid) {
+            int watchdir_len = (int)strlen(watchdir);
+            if (watchdir[watchdir_len - 1] != '/') {
+                watchdir[watchdir_len] = '/';
+                watchdir[watchdir_len + 1] = '\0';
+            }
+            int wd = inotify_add_watch(fd, watchdir, mask);
+            (void)(wd);
+            assert(wd != -1);
+
+            dmon__watch_subdir subdir;
+            _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), watchdir);
+            if (strstr(subdir.rootdir, watch->rootdir) == subdir.rootdir) {
+                _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), watchdir + strlen(watch->rootdir));
+            }
+
+            ((((watch->subdirs)==0 || ((int *) (watch->subdirs) - 2)[1]+((1)) >= ((int *) (watch->subdirs) - 2)[0]) ? (*((void **)&(watch->subdirs)) = stb__sbgrowf((watch->subdirs), (1), sizeof(*(watch->subdirs)))) : 0), (watch->subdirs)[((int *) (watch->subdirs) - 2)[1]++] = (subdir));
+            ((((watch->wds)==0 || ((int *) (watch->wds) - 2)[1]+((1)) >= ((int *) (watch->wds) - 2)[0]) ? (*((void **)&(watch->wds)) = stb__sbgrowf((watch->wds), (1), sizeof(*(watch->wds)))) : 0), (watch->wds)[((int *) (watch->wds) - 2)[1]++] = (wd));
+
+
+            _dmon_watch_recursive(watchdir, fd, mask, followlinks, watch);
+        }
+    }
+    closedir(dir);
 }
 
-              void _dmon_cf_free(void* ptr, void* info)
+              const char* _dmon_find_subdir(const dmon__watch_state* watch, int wd)
 {
-    (void)(info);
-    free(ptr);
+    const int* wds = watch->wds;
+    int i, c;
+    for (i = 0, c = ((wds) ? ((int *) (wds) - 2)[1] : 0); i < c; i++) {
+        if (wd == wds[i]) {
+            return watch->subdirs[i].rootdir;
+        }
+    }
+
+    return NULL;
 }
 
-              void* _dmon_cf_realloc(void* ptr, CFIndex newsize, CFOptionFlags hints, void* info)
+              void _dmon_gather_recursive(dmon__watch_state* watch, const char* dirname)
 {
-    (void)(hints);
-    (void)(info);
-    return realloc(ptr, (size_t)newsize);
+    struct dirent* entry;
+    DIR* dir = opendir(dirname);
+    assert(dir);
+
+    char newdir[260];
+    while ((entry = readdir(dir)) != NULL) {
+        bool entry_valid = false;
+        bool is_dir = false;
+        if (strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".") != 0) {
+            _dmon_strcpy(newdir, sizeof(newdir), dirname);
+            _dmon_strcat(newdir, sizeof(newdir), entry->d_name);
+            is_dir = (entry->d_type == DT_DIR);
+            entry_valid = true;
+        }
+
+
+        if (entry_valid) {
+            dmon__watch_subdir subdir;
+            _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), newdir);
+            if (strstr(subdir.rootdir, watch->rootdir) == subdir.rootdir) {
+                _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), newdir + strlen(watch->rootdir));
+            }
+
+            dmon__inotify_event dev = { { 0 }, IN_CREATE|(is_dir ? IN_ISDIR : 0U), 0, watch->id, false };
+            _dmon_strcpy(dev.filepath, sizeof(dev.filepath), subdir.rootdir);
+            ((((_dmon.events)==0 || ((int *) (_dmon.events) - 2)[1]+((1)) >= ((int *) (_dmon.events) - 2)[0]) ? (*((void **)&(_dmon.events)) = stb__sbgrowf((_dmon.events), (1), sizeof(*(_dmon.events)))) : 0), (_dmon.events)[((int *) (_dmon.events) - 2)[1]++] = (dev));
+        }
+    }
+    closedir(dir);
 }
 
-              void _dmon_fsevent_process_events(void)
+              void _dmon_inotify_process_events(void)
 {
     int i, c;
     for (i = 0, c = ((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0); i < c; i++) {
-        dmon__fsevent_event* ev = &_dmon.events[i];
+        dmon__inotify_event* ev = &_dmon.events[i];
         if (ev->skip) {
             continue;
         }
 
 
-        if (ev->event_flags & kFSEventStreamEventFlagItemModified) {
+        if (ev->mask & IN_MODIFY) {
             int j;
             for (j = i + 1; j < c; j++) {
-                dmon__fsevent_event* check_ev = &_dmon.events[j];
-                if ((check_ev->event_flags & kFSEventStreamEventFlagItemModified) &&
-                    strcmp(ev->filepath, check_ev->filepath) == 0) {
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+                if ((check_ev->mask & IN_MODIFY) && strcmp(ev->filepath, check_ev->filepath) == 0) {
                     ev->skip = true;
                     break;
+                } else if ((ev->mask & IN_ISDIR) && (check_ev->mask & (IN_ISDIR|IN_MODIFY))) {
+
+
+
+                    int l1 = (int)strlen(ev->filepath);
+                    int l2 = (int)strlen(check_ev->filepath);
+                    if (ev->filepath[l1-1] == '/') ev->filepath[l1-1] = '\0';
+                    if (check_ev->filepath[l2-1] == '/') check_ev->filepath[l2-1] = '\0';
+                    if (strcmp(ev->filepath, check_ev->filepath) == 0) {
+                        ev->skip = true;
+                        break;
+                    }
                 }
             }
-        } else if ((ev->event_flags & kFSEventStreamEventFlagItemRenamed) && !ev->move_valid) {
+        } else if (ev->mask & IN_CREATE) {
+            int j;
+            bool loop_break = false;
+            for (j = i + 1; j < c && !loop_break; j++) {
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+                if ((check_ev->mask & IN_MOVED_FROM) && strcmp(ev->filepath, check_ev->filepath) == 0) {
+
+
+
+                    int k;
+                    for (k = j + 1; k < c; k++) {
+                        dmon__inotify_event* third_ev = &_dmon.events[k];
+                        if (third_ev->mask & IN_MOVED_TO && check_ev->cookie == third_ev->cookie) {
+                            third_ev->mask = IN_MODIFY;
+                            ev->skip = check_ev->skip = true;
+                            loop_break = true;
+                            break;
+                        }
+                    }
+                } else if ((check_ev->mask & IN_MODIFY) && strcmp(ev->filepath, check_ev->filepath) == 0) {
+
+
+                    check_ev->skip = true;
+                }
+            }
+        } else if (ev->mask & IN_MOVED_FROM) {
+            bool move_valid = false;
             int j;
             for (j = i + 1; j < c; j++) {
-                dmon__fsevent_event* check_ev = &_dmon.events[j];
-                if ((check_ev->event_flags & kFSEventStreamEventFlagItemRenamed) &&
-                    check_ev->event_id == (ev->event_id + 1)) {
-                    ev->move_valid = check_ev->move_valid = true;
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+                if (check_ev->mask & IN_MOVED_TO && ev->cookie == check_ev->cookie) {
+                    move_valid = true;
                     break;
                 }
             }
@@ -216,28 +327,42 @@ static dmon__state _dmon;
 
 
 
+            if (!move_valid) {
+                ev->mask = IN_DELETE;
+            }
+        } else if (ev->mask & IN_MOVED_TO) {
+            bool move_valid = false;
+            int j;
+            for (j = 0; j < i; j++) {
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+                if (check_ev->mask & IN_MOVED_FROM && ev->cookie == check_ev->cookie) {
+                    move_valid = true;
+                    break;
+                }
+            }
 
-            if (!ev->move_valid) {
-                ev->event_flags &= ~kFSEventStreamEventFlagItemRenamed;
 
-                char abs_filepath[260];
-                dmon__watch_state* watch = _dmon.watches[ev->watch_id.id-1];
-                _dmon_strcpy(abs_filepath, sizeof(abs_filepath), watch->rootdir);
-                _dmon_strcat(abs_filepath, sizeof(abs_filepath), ev->filepath);
 
-                struct stat root_st;
-                if (stat(abs_filepath, &root_st) != 0) {
-                    ev->event_flags |= kFSEventStreamEventFlagItemRemoved;
-                } else {
-                    ev->event_flags |= kFSEventStreamEventFlagItemCreated;
+
+            if (!move_valid) {
+                ev->mask = IN_CREATE;
+            }
+        } else if (ev->mask & IN_DELETE) {
+            int j;
+            for (j = i + 1; j < c; j++) {
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+
+                if ((check_ev->mask & IN_MODIFY) && strcmp(ev->filepath, check_ev->filepath) == 0) {
+                    check_ev->skip = true;
+                    break;
                 }
             }
         }
     }
 
 
-    for (i = 0, c = ((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0); i < c; i++) {
-        dmon__fsevent_event* ev = &_dmon.events[i];
+    for (i = 0; i < ((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0); i++) {
+        dmon__inotify_event* ev = &_dmon.events[i];
         if (ev->skip) {
             continue;
         }
@@ -247,85 +372,145 @@ static dmon__state _dmon;
             continue;
         }
 
-        if (ev->event_flags & kFSEventStreamEventFlagItemCreated) {
-            watch->watch_cb(ev->watch_id, DMON_ACTION_CREATE, watch->rootdir_unmod, ev->filepath, NULL,
-                            watch->user_data);
-        }
+        if (ev->mask & IN_CREATE) {
+            if (ev->mask & IN_ISDIR) {
+                if (watch->watch_flags & DMON_WATCHFLAGS_RECURSIVE) {
+                    char watchdir[260];
+                    _dmon_strcpy(watchdir, sizeof(watchdir), watch->rootdir);
+                    _dmon_strcat(watchdir, sizeof(watchdir), ev->filepath);
+                    _dmon_strcat(watchdir, sizeof(watchdir), "/");
+                    uint32_t mask = IN_MOVED_TO | IN_CREATE | IN_MOVED_FROM | IN_DELETE | IN_MODIFY;
+                    int wd = inotify_add_watch(watch->fd, watchdir, mask);
+                    (void)(wd);
+                    assert(wd != -1);
 
-        if (ev->event_flags & kFSEventStreamEventFlagItemModified) {
-            watch->watch_cb(ev->watch_id, DMON_ACTION_MODIFY, watch->rootdir_unmod, ev->filepath, NULL, watch->user_data);
-        } else if (ev->event_flags & kFSEventStreamEventFlagItemRenamed) {
+                    dmon__watch_subdir subdir;
+                    _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), watchdir);
+                    if (strstr(subdir.rootdir, watch->rootdir) == subdir.rootdir) {
+                        _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), watchdir + strlen(watch->rootdir));
+                    }
+
+                    ((((watch->subdirs)==0 || ((int *) (watch->subdirs) - 2)[1]+((1)) >= ((int *) (watch->subdirs) - 2)[0]) ? (*((void **)&(watch->subdirs)) = stb__sbgrowf((watch->subdirs), (1), sizeof(*(watch->subdirs)))) : 0), (watch->subdirs)[((int *) (watch->subdirs) - 2)[1]++] = (subdir));
+                    ((((watch->wds)==0 || ((int *) (watch->wds) - 2)[1]+((1)) >= ((int *) (watch->wds) - 2)[0]) ? (*((void **)&(watch->wds)) = stb__sbgrowf((watch->wds), (1), sizeof(*(watch->wds)))) : 0), (watch->wds)[((int *) (watch->wds) - 2)[1]++] = (wd));
+
+
+
+                    _dmon_gather_recursive(watch, watchdir);
+                    ev = &_dmon.events[i];
+                }
+            }
+            watch->watch_cb(ev->watch_id, DMON_ACTION_CREATE, watch->rootdir, ev->filepath, NULL, watch->user_data);
+        }
+        else if (ev->mask & IN_MODIFY) {
+            watch->watch_cb(ev->watch_id, DMON_ACTION_MODIFY, watch->rootdir, ev->filepath, NULL, watch->user_data);
+        }
+        else if (ev->mask & IN_MOVED_FROM) {
             int j;
-            for (j = i + 1; j < c; j++) {
-                dmon__fsevent_event* check_ev = &_dmon.events[j];
-                if (check_ev->event_flags & kFSEventStreamEventFlagItemRenamed) {
-                    watch->watch_cb(check_ev->watch_id, DMON_ACTION_MOVE, watch->rootdir_unmod,
+            for (j = i + 1; j < ((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0); j++) {
+                dmon__inotify_event* check_ev = &_dmon.events[j];
+                if (check_ev->mask & IN_MOVED_TO && ev->cookie == check_ev->cookie) {
+                    watch->watch_cb(check_ev->watch_id, DMON_ACTION_MOVE, watch->rootdir,
                                     check_ev->filepath, ev->filepath, watch->user_data);
                     break;
                 }
             }
-        } else if (ev->event_flags & kFSEventStreamEventFlagItemRemoved) {
-            watch->watch_cb(ev->watch_id, DMON_ACTION_DELETE, watch->rootdir_unmod, ev->filepath, NULL,
-                            watch->user_data);
+        }
+        else if (ev->mask & IN_DELETE) {
+            watch->watch_cb(ev->watch_id, DMON_ACTION_DELETE, watch->rootdir, ev->filepath, NULL, watch->user_data);
         }
     }
 
     ((_dmon.events) ? (((int *) (_dmon.events) - 2)[1] = 0) : 0);
 }
 
-              void* _dmon_thread(void* arg)
+static void* _dmon_thread(void* arg)
 {
     (void)(arg);
 
+    static uint8_t buff[((sizeof(struct inotify_event) + PATH_MAX) * 1024)];
     struct timespec req = { (time_t)10 / 1000, (long)(10 * 1000000) };
     struct timespec rem = { 0, 0 };
+    struct timeval timeout;
+    uint64_t usecs_elapsed = 0;
 
-    _dmon.cf_loop_ref = CFRunLoopGetCurrent();
-    dispatch_semaphore_signal(_dmon.thread_sem);
+    struct timeval starttm;
+    gettimeofday(&starttm, 0);
 
     while (!_dmon.quit) {
-        int i;
-        if (_dmon.modify_watches || pthread_mutex_trylock(&_dmon.mutex) != 0) {
-            nanosleep(&req, &rem);
+        nanosleep(&req, &rem);
+        if (_dmon.num_watches == 0 || pthread_mutex_trylock(&_dmon.mutex) != 0) {
             continue;
         }
 
-        if (_dmon.num_watches == 0) {
-            nanosleep(&req, &rem);
-            pthread_mutex_unlock(&_dmon.mutex);
-            continue;
-        }
 
-        for (i = 0; i < _dmon.num_watches; i++) {
-            dmon__watch_state* watch = _dmon.watches[i];
-            if (!watch->init) {
-                assert(watch->fsev_stream_ref);
-                FSEventStreamScheduleWithRunLoop(watch->fsev_stream_ref, _dmon.cf_loop_ref, kCFRunLoopDefaultMode);
-                FSEventStreamStart(watch->fsev_stream_ref);
-
-                watch->init = true;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        {
+            int i;
+            for (i = 0; i < _dmon.num_watches; i++) {
+                dmon__watch_state* watch = _dmon.watches[i];
+                FD_SET(watch->fd, &rfds);
             }
         }
 
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, kCFRunLoopRunTimedOut);
-        _dmon_fsevent_process_events();
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 100000;
+        if (select(FD_SETSIZE, &rfds, NULL, NULL, &timeout)) {
+            int i;
+            for (i = 0; i < _dmon.num_watches; i++) {
+                dmon__watch_state* watch = _dmon.watches[i];
+                if (FD_ISSET(watch->fd, &rfds)) {
+                    ssize_t offset = 0;
+                    ssize_t len = read(watch->fd, buff, ((sizeof(struct inotify_event) + PATH_MAX) * 1024));
+                    if (len <= 0) {
+                        continue;
+                    }
+
+                    while (offset < len) {
+                        struct inotify_event* iev = (struct inotify_event*)&buff[offset];
+
+                        const char *subdir = _dmon_find_subdir(watch, iev->wd);
+                        if (subdir) {
+                            char filepath[260];
+                            _dmon_strcpy(filepath, sizeof(filepath), subdir);
+                            _dmon_strcat(filepath, sizeof(filepath), iev->name);
+
+
+
+                            if (((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0) == 0) {
+                                usecs_elapsed = 0;
+                            }
+                            dmon__inotify_event dev = { { 0 }, iev->mask, iev->cookie, watch->id, false };
+                            _dmon_strcpy(dev.filepath, sizeof(dev.filepath), filepath);
+                            ((((_dmon.events)==0 || ((int *) (_dmon.events) - 2)[1]+((1)) >= ((int *) (_dmon.events) - 2)[0]) ? (*((void **)&(_dmon.events)) = stb__sbgrowf((_dmon.events), (1), sizeof(*(_dmon.events)))) : 0), (_dmon.events)[((int *) (_dmon.events) - 2)[1]++] = (dev));
+                        }
+
+                        offset += sizeof(struct inotify_event) + iev->len;
+                    }
+                }
+            }
+        }
+
+        struct timeval tm;
+        gettimeofday(&tm, 0);
+        long dt = (tm.tv_sec - starttm.tv_sec) * 1000000 + tm.tv_usec - starttm.tv_usec;
+        starttm = tm;
+        usecs_elapsed += dt;
+        if (usecs_elapsed > 100000 && ((_dmon.events) ? ((int *) (_dmon.events) - 2)[1] : 0) > 0) {
+            _dmon_inotify_process_events();
+            usecs_elapsed = 0;
+        }
 
         pthread_mutex_unlock(&_dmon.mutex);
     }
-
-    CFRunLoopStop(_dmon.cf_loop_ref);
-    _dmon.cf_loop_ref = NULL;
     return 0x0;
 }
 
               void _dmon_unwatch(dmon__watch_state* watch)
 {
-    if (watch->fsev_stream_ref) {
-        FSEventStreamStop(watch->fsev_stream_ref);
-        FSEventStreamInvalidate(watch->fsev_stream_ref);
-        FSEventStreamRelease(watch->fsev_stream_ref);
-        watch->fsev_stream_ref = NULL;
-    }
+    close(watch->fd);
+    ((watch->subdirs) ? free(((int *) (watch->subdirs) - 2)),0 : 0);
+    ((watch->wds) ? free(((int *) (watch->wds) - 2)),0 : 0);
 }
 
               void dmon_init(void)
@@ -333,21 +518,9 @@ static dmon__state _dmon;
     assert(!_dmon_init);
     pthread_mutex_init(&_dmon.mutex, NULL);
 
-    CFAllocatorContext cf_alloc_ctx = { 0 };
-    cf_alloc_ctx.allocate = _dmon_cf_malloc;
-    cf_alloc_ctx.deallocate = _dmon_cf_free;
-    cf_alloc_ctx.reallocate = _dmon_cf_realloc;
-    _dmon.cf_alloc_ref = CFAllocatorCreate(NULL, &cf_alloc_ctx);
-
-    _dmon.thread_sem = dispatch_semaphore_create(0);
-    assert(_dmon.thread_sem);
-
     int r = pthread_create(&_dmon.thread_handle, NULL, _dmon_thread, NULL);
     (void)(r);
     assert(r == 0 && "pthread_create failed");
-
-
-    dispatch_semaphore_wait(_dmon.thread_sem, DISPATCH_TIME_FOREVER);
 
     for (int i = 0; i < 64; i++)
         _dmon.freelist[i] = 64 - i - 1;
@@ -361,8 +534,6 @@ static dmon__state _dmon;
     _dmon.quit = true;
     pthread_join(_dmon.thread_handle, NULL);
 
-    dispatch_release(_dmon.thread_sem);
-
     {
         int i;
         for (i = 0; i < _dmon.num_watches; i++) {
@@ -375,53 +546,8 @@ static dmon__state _dmon;
 
     pthread_mutex_destroy(&_dmon.mutex);
     ((_dmon.events) ? free(((int *) (_dmon.events) - 2)),0 : 0);
-    if (_dmon.cf_alloc_ref)
-        CFRelease(_dmon.cf_alloc_ref);
-
     memset(&_dmon, 0x0, sizeof(_dmon));
     _dmon_init = false;
-}
-
-              void _dmon_fsevent_callback(ConstFSEventStreamRef stream_ref, void* user_data,
-                                          size_t num_events, void* event_paths,
-                                          const FSEventStreamEventFlags event_flags[],
-                                          const FSEventStreamEventId event_ids[])
-{
-    (void)(stream_ref);
-
-    union dmon__cast_userdata _userdata;
-    _userdata.ptr = user_data;
-    dmon_watch_id watch_id = (dmon_watch_id) {_userdata.id};
-    assert(watch_id.id > 0);
-    dmon__watch_state* watch = _dmon.watches[watch_id.id - 1];
-    char abs_filepath[260];
-    char abs_filepath_lower[260];
-
-    {
-        size_t i;
-        for (i = 0; i < num_events; i++) {
-            const char *filepath = ((const char **) event_paths)[i];
-            long flags = (long) event_flags[i];
-            uint64_t event_id = (uint64_t) event_ids[i];
-            dmon__fsevent_event ev;
-            memset(&ev, 0x0, sizeof(ev));
-
-            _dmon_strcpy(abs_filepath, sizeof(abs_filepath), filepath);
-            _dmon_unixpath(abs_filepath, sizeof(abs_filepath), abs_filepath);
-
-
-            _dmon_tolower(abs_filepath_lower, sizeof(abs_filepath), abs_filepath);
-            assert(strstr(abs_filepath_lower, watch->rootdir) == abs_filepath_lower);
-
-
-            _dmon_strcpy(ev.filepath, sizeof(ev.filepath), abs_filepath + strlen(watch->rootdir));
-
-            ev.event_flags = flags;
-            ev.event_id = event_id;
-            ev.watch_id = watch_id;
-            ((((_dmon.events)==0 || ((int *) (_dmon.events) - 2)[1]+((1)) >= ((int *) (_dmon.events) - 2)[0]) ? (*((void **)&(_dmon.events)) = stb__sbgrowf((_dmon.events), (1), sizeof(*(_dmon.events)))) : 0), (_dmon.events)[((int *) (_dmon.events) - 2)[1]++] = (ev));
-        }
-    }
 }
 
               dmon_watch_id dmon_watch(const char* rootdir,
@@ -434,7 +560,6 @@ static dmon__state _dmon;
     assert(watch_cb);
     assert(rootdir && rootdir[0]);
 
-    __sync_lock_test_and_set(&_dmon.modify_watches, 1);
     pthread_mutex_lock(&_dmon.mutex);
 
     assert(_dmon.num_watches < 64);
@@ -443,7 +568,6 @@ static dmon__state _dmon;
         pthread_mutex_unlock(&_dmon.mutex);
         return (dmon_watch_id) {0};
     }
-
 
     int num_freelist = 64 - _dmon.num_watches;
     int index = _dmon.freelist[num_freelist - 1];
@@ -462,7 +586,7 @@ static dmon__state _dmon;
 
     ++_dmon.num_watches;
 
-    dmon__watch_state* watch = _dmon.watches[id - 1];
+    dmon__watch_state* watch = _dmon.watches[index];
     assert(watch);
     watch->id = (dmon_watch_id) {id};
     watch->watch_flags = flags;
@@ -470,11 +594,9 @@ static dmon__state _dmon;
     watch->user_data = user_data;
 
     struct stat root_st;
-    if (stat(rootdir, &root_st) != 0 || !S_ISDIR(root_st.st_mode) ||
-        (root_st.st_mode & S_IRUSR) != S_IRUSR) {
+    if (stat(rootdir, &root_st) != 0 || !S_ISDIR(root_st.st_mode) || (root_st.st_mode & S_IRUSR) != S_IRUSR) {
         do { char msg[512]; snprintf(msg, sizeof(msg), "Could not open/read directory: %s", rootdir); do { puts(msg); assert(0); } while(0); } while(0);;
         pthread_mutex_unlock(&_dmon.mutex);
-        __sync_lock_test_and_set(&_dmon.modify_watches, 0);
         return (dmon_watch_id) {0};
     }
 
@@ -488,20 +610,13 @@ static dmon__state _dmon;
             _dmon_strcpy(watch->rootdir, sizeof(watch->rootdir) - 1, linkpath);
         } else {
             do { char msg[512]; snprintf(msg, sizeof(msg), "symlinks are unsupported: %s. use DMON_WATCHFLAGS_FOLLOW_SYMLINKS", rootdir); do { puts(msg); assert(0); } while(0); } while(0);;
+
             pthread_mutex_unlock(&_dmon.mutex);
-            __sync_lock_test_and_set(&_dmon.modify_watches, 0);
             return (dmon_watch_id) {0};
         }
     } else {
-        char rootdir_abspath[260];
-        if (realpath(rootdir, rootdir_abspath) != NULL) {
-            _dmon_strcpy(watch->rootdir, sizeof(watch->rootdir) - 1, rootdir_abspath);
-        } else {
-            _dmon_strcpy(watch->rootdir, sizeof(watch->rootdir) - 1, rootdir);
-        }
+        _dmon_strcpy(watch->rootdir, sizeof(watch->rootdir) - 1, rootdir);
     }
-
-    _dmon_unixpath(watch->rootdir, sizeof(watch->rootdir), watch->rootdir);
 
 
     int rootdir_len = (int)strlen(watch->rootdir);
@@ -510,37 +625,39 @@ static dmon__state _dmon;
         watch->rootdir[rootdir_len + 1] = '\0';
     }
 
-    _dmon_strcpy(watch->rootdir_unmod, sizeof(watch->rootdir_unmod), watch->rootdir);
-    _dmon_tolower(watch->rootdir, sizeof(watch->rootdir), watch->rootdir);
+    watch->fd = inotify_init();
+    if (watch->fd < -1) {
+        do { puts("could not create inotify instance"); assert(0); } while(0);
+        pthread_mutex_unlock(&_dmon.mutex);
+        return (dmon_watch_id) {0};
+    }
+
+    uint32_t inotify_mask = IN_MOVED_TO | IN_CREATE | IN_MOVED_FROM | IN_DELETE | IN_MODIFY;
+    int wd = inotify_add_watch(watch->fd, watch->rootdir, inotify_mask);
+    if (wd < 0) {
+       do { char msg[512]; snprintf(msg, sizeof(msg), "Error watching directory '%s'. (inotify_add_watch:err=%d)", watch->rootdir, errno); do { puts(msg); assert(0); } while(0); } while(0);;
+        pthread_mutex_unlock(&_dmon.mutex);
+        return (dmon_watch_id) {0};
+    }
+    dmon__watch_subdir subdir;
+    _dmon_strcpy(subdir.rootdir, sizeof(subdir.rootdir), "");
+    ((((watch->subdirs)==0 || ((int *) (watch->subdirs) - 2)[1]+((1)) >= ((int *) (watch->subdirs) - 2)[0]) ? (*((void **)&(watch->subdirs)) = stb__sbgrowf((watch->subdirs), (1), sizeof(*(watch->subdirs)))) : 0), (watch->subdirs)[((int *) (watch->subdirs) - 2)[1]++] = (subdir));
+    ((((watch->wds)==0 || ((int *) (watch->wds) - 2)[1]+((1)) >= ((int *) (watch->wds) - 2)[0]) ? (*((void **)&(watch->wds)) = stb__sbgrowf((watch->wds), (1), sizeof(*(watch->wds)))) : 0), (watch->wds)[((int *) (watch->wds) - 2)[1]++] = (wd));
 
 
-    CFStringRef cf_dir = CFStringCreateWithCString(NULL, watch->rootdir_unmod, kCFStringEncodingUTF8);
-    CFArrayRef cf_dirarr = CFArrayCreate(NULL, (const void**)&cf_dir, 1, NULL);
+    if (flags & DMON_WATCHFLAGS_RECURSIVE) {
+        _dmon_watch_recursive(watch->rootdir, watch->fd, inotify_mask,
+                              (flags & DMON_WATCHFLAGS_FOLLOW_SYMLINKS) ? true : false, watch);
+    }
 
-    FSEventStreamContext ctx;
-    union dmon__cast_userdata userdata;
-    userdata.id = id;
-    ctx.version = 0;
-    ctx.info = userdata.ptr;
-    ctx.retain = NULL;
-    ctx.release = NULL;
-    ctx.copyDescription = NULL;
-    watch->fsev_stream_ref = FSEventStreamCreate(_dmon.cf_alloc_ref, _dmon_fsevent_callback, &ctx,
-                                                 cf_dirarr, kFSEventStreamEventIdSinceNow, 0.25,
-                                                 kFSEventStreamCreateFlagFileEvents);
-
-
-    CFRelease(cf_dirarr);
-    CFRelease(cf_dir);
 
     pthread_mutex_unlock(&_dmon.mutex);
-    __sync_lock_test_and_set(&_dmon.modify_watches, 0);
     return (dmon_watch_id) {id};
 }
 
               void dmon_unwatch(dmon_watch_id id)
 {
-    assert(_dmon_init);
+ assert(_dmon_init);
     assert(id.id > 0);
     int index = id.id - 1;
     assert(index < 64);
@@ -548,7 +665,6 @@ static dmon__state _dmon;
     assert(_dmon.num_watches > 0);
 
     if (_dmon.watches[index]) {
-        __sync_lock_test_and_set(&_dmon.modify_watches, 1);
         pthread_mutex_lock(&_dmon.mutex);
 
         _dmon_unwatch(_dmon.watches[index]);
@@ -560,6 +676,5 @@ static dmon__state _dmon;
         _dmon.freelist[num_freelist - 1] = index;
 
         pthread_mutex_unlock(&_dmon.mutex);
-        __sync_lock_test_and_set(&_dmon.modify_watches, 0);
     }
 }
