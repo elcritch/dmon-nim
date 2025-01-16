@@ -187,15 +187,31 @@ proc processWatches() =
       info "process watch ", watch = watch.repr
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
-        debug "inotify isset: ", watchId = watch.fd
+        debug "inotify isset: ", watchFd = watch.fd
 
         var events: array[MaxWatches, byte]  # event buffer
         while (let n = read(watch.fd, addr events, MaxWatches); n) > 0:  # blocks until any events have been read
-          for e in inotify_events(addr events, n):
-            let watchId = e[].wd
-            let mask = e[].mask
-            let name = cast[cstring](addr e[].name)    # echo watch id, mask, and name value of each event
+          for iev in inotify_events(addr events, n):
+            let watchId = iev[].wd
+            let mask = iev[].mask
+            let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
             debug "inotify events: ", watchId = watchId, mask = mask, name = name
+            let subdir = watch.findSubdir(watchId)
+
+            if subdir.len > 0:
+              let filepath = subdir / name
+              
+              # if dmonInst.events.len == 0:
+              #   microSecsElapsed = 0
+                
+              var event = FileEvent(
+                filePath: filepath,
+                mask: iev.mask,
+                cookie: iev.cookie,
+                watchId: watch.id,
+                skip: false
+              )
+              dmonInst.events.add(event)
 
       when false:
           var idx = 0
@@ -271,6 +287,7 @@ proc watch*(
   withLock dmonInst.threadLock:
     # Initialize inotify
     watch.fd = inotify_init()
+    info "inotify init", watchFd = watch.fd
     if watch.fd.cint < 0:
       return WatchId(0)
 

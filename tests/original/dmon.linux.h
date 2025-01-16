@@ -342,6 +342,7 @@ static dmon__state _dmon;
     ((_dmon.events) ? (((int *) (_dmon.events) - 2)[1] = 0) : 0);
 }
 
+
 static void* _dmon_thread(void* arg)
 {
     (void)(arg);

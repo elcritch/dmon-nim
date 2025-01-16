@@ -31,6 +31,7 @@ proc main() =
     {Recursive},
     nil
   )
+  echo "watchId:repr: ", watchId.repr
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(10_000)
   watchId.unwatch()
