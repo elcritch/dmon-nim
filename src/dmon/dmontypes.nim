@@ -33,7 +33,6 @@ type
     filepath: string
     watchId: DmonWatchId
     skip: bool
-    moveValid: bool
 
   DmonWatchState* = ref object
     id: DmonWatchId

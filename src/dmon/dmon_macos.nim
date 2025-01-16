@@ -16,21 +16,12 @@ import macosutils/fsstream
 import dmontypes
 
 type
-  DmonFsEvent* = ref object
-    filepath: string
+  DmonFsEvent* = ref object of DmonFsEvent
     eventId: FSEventStreamEventId
     eventFlags: set[FSEventStreamEventFlag]
-    watchId: DmonWatchId
-    skip: bool
     moveValid: bool
 
   DmonWatchState* = ref object
-    id: DmonWatchId
-    watchFlags: set[DmonWatchFlags]
-    watchCb: DmonWatchCallback
-    userData: pointer
-    rootdir: string
-    rootdirUnmod: string
     init: bool
     fsEvStreamRef: FSEventStreamRef
 
