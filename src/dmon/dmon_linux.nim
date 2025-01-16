@@ -1,4 +1,4 @@
-import posix
+import std/posix
 import std/[os, strutils, paths]
 import std/locks
 import std/inotify
@@ -7,6 +7,9 @@ from std/times import getTime, Time
 
 import logging
 import dmontypes
+
+const PATH_MAX = 4096
+let path_max_sys {.importc, extern: "PATH_MAX ", header: "#include <linux/limits.h>".}: cint
 
 proc watchRecursive(
     watch: WatchState, dirname: string, fd: FileHandle, mask: uint32, followLinks: bool
@@ -163,7 +166,7 @@ const BufferSize = sizeof(FileEvent) * 1024
 proc processWatches() =
 
   # setup watches / readfds
-  var buffer: array[1024, InotifyEvent]
+  var buffer: array[1024, (InotifyEvent, array[PATH_MAX, char])]
   var readfds: TFdSet
   FD_ZERO(readfds)
   
@@ -180,17 +183,24 @@ proc processWatches() =
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
     trace "monitor: select readfds "
     for watch in dmonInst.watchStates():
-      info "initialize watch ", watch = watch.repr
+      info "process watch ", watch = watch.repr
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
         var idx = 0
         # read events
-        let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
+        # ssize_t len = read(watch->fd, buff, ((sizeof(struct inotify_event) + PATH_MAX) * 1024));
+        let bytesRead  = read(watch.fd.cint, addr buffer[0],
+                              sizeof(InotifyEvent) * 1024)
+        # let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
+        let cnt = bytesRead div sizeof(InotifyEvent)
+        info "process watch fd ", fd = watch.fd, bytesRead = bytesRead, cnt = cnt, sizeInotify = sizeof(InotifyEvent)
         
         if bytesRead <= 0:
           continue
 
-        let cnt = bytesRead div sizeof(InotifyEvent)
+        assert cnt <= 1024
+        assert cnt * sizeof(InotifyEvent) == bytesRead
+
         for idx in 0 ..< cnt:
           let item = buffer[cnt]
           let iev = item
@@ -272,4 +282,5 @@ proc watch*(
 
 proc initDmonImpl*() =
   info "initDmonImpl: "
+  assert path_max_sys == PATH_MAX
   discard

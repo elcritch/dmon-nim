@@ -346,7 +346,7 @@ static void* _dmon_thread(void* arg)
 {
     (void)(arg);
 
-    static uint8_t buff[((sizeof(struct inotify_event) + PATH_MAX) * 1024)];
+    static uint8_t buff[((sizeof(struct inotify_event) + PC_PATH_MAX) * 1024)];
     struct timespec req = { (time_t)10 / 1000, (long)(10 * 1000000) };
     struct timespec rem = { 0, 0 };
     struct timeval timeout;
