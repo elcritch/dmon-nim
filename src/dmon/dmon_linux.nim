@@ -234,29 +234,12 @@ proc processWatches() =
               )
               dmonInst.events.add(event)
 
-          # let ts = getMonoTime()
-          # if (ts - starttm).inMilliseconds > 100:
-          # trace "processWatches: finished inotify events", watchFd = watch.fd
-          # processEvents(move dmonInst.events)
-          # assert dmonInst.events.len() == 0
-          # starttm = ts
-
-    # Check elapsed time and process events if needed
-    # let currentTime = getTime()
-    # let dt = (currentTime - startTime).inMicroseconds
-    # startTime = currentTime
-    # microSecsElapsed += dt
-    # trace "processWatches: finished inotify events", watchFd = watch.fd
-
     let ts = getMonoTime()
     if (ts - starttm).inMilliseconds > 100:
       trace "processWatches: finished inotify events"
       processEvents(move dmonInst.events)
       assert dmonInst.events.len() == 0
       starttm = ts
-
-    # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
-    # microSecsElapsed = 0
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
