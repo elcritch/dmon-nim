@@ -46,7 +46,7 @@ proc findSubdir(watch: WatchState, wd: cint): string =
 # Process inotify events
 proc processEvents(events: seq[FileEvent]) =
   trace "processing processEvents ", eventsLen = dmon.events.len
-  for i in 0..<events.len():
+  for i, ev in events:
     var ev = events[i]
     if ev.skip:
       continue
@@ -115,8 +115,8 @@ proc processEvents(events: seq[FileEvent]) =
           break
 
   # Process the events
-  for i in 0..<dmon.events.len:
-    let ev = addr dmon.events[i]
+  for i in 0..<events.len:
+    let ev = events[i]
     if ev.skip:
       continue
 
