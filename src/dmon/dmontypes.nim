@@ -71,7 +71,7 @@ iterator watchStates*(dmon: DmonState): WatchState =
   for i in 0 ..< dmon.numWatches:
     yield dmon.watches[i]
 
-proc watchDmonInit*(
+proc watchInit*(
     dmon: var DmonState,
     rootdir: string,
     watchCb: WatchCallback,
@@ -170,8 +170,9 @@ template startDmonThread*() =
   mixin monitorThread
   createThread(dmon.threadHandle, monitorThread)
 
+  notice "start dmon"
   wait(dmon.threadSem, dmon.threadLock)
-  notice "init dom"
+  notice "dmon started"
 
   for i in 0 ..< 64:
     dmon.freeList[i] = 64 - i - 1

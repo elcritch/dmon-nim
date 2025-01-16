@@ -137,14 +137,13 @@ proc monitorThread() {.thread.} =
     notice "starting thread"
     dmon.cfLoopRef = CFRunLoopGetCurrent()
     withLock(dmon.threadLock):
-      echo "signal lock"
+      notice "signal lock"
       signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
 
     notice "started thread loop"
     while not dmon.quit:
       if dmon.numWatches == 0:
-        os.sleep(10)
-        release(dmon.threadLock)
+        os.sleep(100)
         # debug "monitorThread: no numWatches: "
         continue
 
@@ -167,7 +166,7 @@ proc monitorThread() {.thread.} =
         processEvents(move dmon.events)
         assert dmon.events.len() == 0
 
-      # release(dmon.threadLock)
+      os.sleep(10)
 
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef
@@ -187,7 +186,7 @@ proc watch*(
     userData: pointer,
 ): WatchId =
   # Create FSEvents stream
-  let watch = dmon.watchDmonInit(rootdir, watchCb, flags, userData)
+  let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
 
   withLock dmon.threadLock:
     let cfPath = CFStringCreateWithCString(
