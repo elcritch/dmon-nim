@@ -36,7 +36,7 @@ proc watchRecursive(
       watch.subdirs.add subdir
       watch.wds.add wd
 
-      watchRecursive(watchDir, fd, mask, followLinks, watch)
+      watch.watchRecursive(watchDir, fd, mask, followLinks)
 
 proc findSubdir(watch: WatchState, wd: cint): string =
   for i, watchWd in watch.wds:
