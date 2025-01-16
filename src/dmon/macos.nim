@@ -115,12 +115,11 @@ proc fsEventCallback(
     ev.eventId = eventIds[i]
     ev.watchId = watchId
 
+    notice "fsEventCallback:event:adding: ", ev = ev.repr
     dmon.events.add(ev)
 
-proc processEvents() =
+proc processEvents(events: seq[DmonFsEvent]) =
   trace "processing processEvents ", eventsLen = dmon.events.len
-  # for i in 0 ..< dmon.events.len:
-  var events: seq[DmonFsEvent]
   for i, ev in events:
     if ev.skip:
       continue
@@ -158,9 +157,7 @@ proc processEvents() =
           ev.eventFlags.incl ItemCreated
 
   # Process final events
-  for i in 0 ..< events.len:
-  # for i, ev in events:
-    let ev = addr dmon.events[i]
+  for i, ev in events:
     if ev.skip:
       debug "skipping event: ", i = i, ev = ev.repr
       continue
@@ -224,7 +221,8 @@ proc monitorThread() {.thread.} =
 
         let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
         trace "CFRunLoopRunInMode result: ", res = res
-        processEvents()
+        processEvents(move dmon.events)
+        assert dmon.events.len() == 0
 
       # release(dmon.threadLock)
 
