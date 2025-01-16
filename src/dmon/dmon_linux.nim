@@ -1,10 +1,11 @@
 
 import posix
 import std/[os, strutils, paths]
-import std/[locks, inotify]
+import std/locks
+import std/inotify
 
 import logging
-
+import dmontypes
 
 type
   WatchSubdir = object
