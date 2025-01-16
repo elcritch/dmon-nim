@@ -16,27 +16,18 @@ import macosutils/fsstream
 import dmontypes
 
 type
-  DmonFsEvent* = ref object of DmonFsEvent
+  MacOOFsEvent* = ref object of DmonFsEvent
     eventId: FSEventStreamEventId
     eventFlags: set[FSEventStreamEventFlag]
     moveValid: bool
 
-  DmonWatchState* = ref object
+  MacOSWatchState* = ref object of DmonWatchState
     init: bool
     fsEvStreamRef: FSEventStreamRef
 
-  DmonState = object
-    watches: array[64, DmonWatchState]
-    freeList: array[64, int]
-    events: seq[DmonFsEvent]
-    numWatches: int
-    # modifyWatches: Atomic[int]
-    threadHandle: Thread[void]
-    threadLock: Lock
-    threadSem: Cond
+  MacOSState = object
     cfLoopRef: CFRunLoopRef
     cfAllocRef: CFAllocatorRef
-    quit: bool
 
 var
   dmonInitialized: bool
