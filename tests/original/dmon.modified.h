@@ -11,7 +11,7 @@
 // Usage:
 //      define DMON_IMPL and include this file to use it:
 //          #define DMON_IMPL
-//          #include "dmon.h"
+//          // // #include "dmon.h"
 //
 //      dmon_init():
 //          Call this once at the start of your program.
@@ -81,8 +81,8 @@
 //      1.3.0       Fixing bugs and proper watch/unwatch handles with freelists. Lower memory consumption, especially on Windows backend
 //      1.3.1       Fix in MacOS event grouping
 
-#include <stdbool.h>
-#include <stdint.h>
+// // #include <stdbool.h>
+// // #include <stdint.h>
 
 #ifndef DMON_API_DECL
 #   define DMON_API_DECL
@@ -155,8 +155,8 @@ DMON_API_DECL void dmon_unwatch(dmon_watch_id id);
 #    ifndef NOMINMAX
 #        define NOMINMAX
 #    endif
-#    include <windows.h>
-#    include <intrin.h>
+// #include <windows.h>
+// #include <intrin.h>
 #    ifdef _MSC_VER
 #        pragma intrinsic(_InterlockedExchange)
 #    endif
@@ -164,45 +164,45 @@ DMON_API_DECL void dmon_unwatch(dmon_watch_id id);
 #    ifndef __USE_MISC
 #        define __USE_MISC
 #    endif
-#    include <dirent.h>
-#    include <errno.h>
-#    include <fcntl.h>
-#    include <linux/limits.h>
-#    include <pthread.h>
-#    include <sys/inotify.h>
-#    include <sys/stat.h>
-#    include <sys/time.h>
-#    include <time.h>
-#    include <unistd.h>
-#    include <stdlib.h>
+// #include <dirent.h>
+// #include <errno.h>
+// #include <fcntl.h>
+// #include <linux/limits.h>
+// #include <pthread.h>
+// #include <sys/inotify.h>
+// #include <sys/stat.h>
+// #include <sys/time.h>
+// #include <time.h>
+// #include <unistd.h>
+// #include <stdlib.h>
 #elif DMON_OS_MACOS
-#   include <pthread.h>
-#   include <CoreServices/CoreServices.h>
-#   include <sys/time.h>
-#   include <sys/stat.h>
-#   include <dispatch/dispatch.h>
+// #include <pthread.h>
+// #include <CoreServices/CoreServices.h>
+// #include <sys/time.h>
+// #include <sys/stat.h>
+// #include <dispatch/dispatch.h>
 #endif
 
 #ifndef DMON_MALLOC
-#   include <stdlib.h>
+// #include <stdlib.h>
 #   define DMON_MALLOC(size)        malloc(size)
 #   define DMON_FREE(ptr)           free(ptr)
 #   define DMON_REALLOC(ptr, size)  realloc(ptr, size)
 #endif
 
 #ifndef DMON_ASSERT
-#   include <assert.h>
+// #include <assert.h>
 #   define DMON_ASSERT(e)   assert(e)
 #endif
 
 #ifndef DMON_LOG_ERROR
-#   include <stdio.h>
+// #include <stdio.h>
 #   define DMON_LOG_ERROR(s)    do { puts(s); DMON_ASSERT(0); } while(0)
 #endif
 
 #ifndef DMON_LOG_DEBUG
 #   ifndef NDEBUG
-#       include <stdio.h>
+// #include <stdio.h>
 #       define DMON_LOG_DEBUG(s)    do { puts(s); } while(0)
 #   else
 #       define DMON_LOG_DEBUG(s)
@@ -231,7 +231,7 @@ DMON_API_DECL void dmon_unwatch(dmon_watch_id id);
 #   define DMON_SLEEP_INTERVAL 10
 #endif
 
-#include <string.h>
+// // #include <string.h>
 
 #ifndef _DMON_LOG_ERRORF
 #   define _DMON_LOG_ERRORF(str, ...) do { char msg[512]; snprintf(msg, sizeof(msg), str, __VA_ARGS__); DMON_LOG_ERROR(msg); } while(0);
