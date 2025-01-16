@@ -166,7 +166,7 @@ template threadExec*() =
       # debug "processing watches ", numWatches = dmonInst.numWatches
       processWatches()
 
-    os.sleep(10)
+    os.sleep(100)
 
 
 proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: var WatchState) {.nimcall.}) =
