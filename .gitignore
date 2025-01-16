@@ -6,3 +6,4 @@
 nimcache/
 nimblecache/
 /tests/file.txt
+*.out
