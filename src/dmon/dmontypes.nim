@@ -47,8 +47,8 @@ type
       eventFlags*: set[FSEventStreamEventFlag]
       moveValid*: bool
     elif defined(linux):
-      mask: uint32
-      cookie: uint32
+      mask*: uint32
+      cookie*: uint32
 
   WatchState* = ref object of RootObj
     id*: WatchId
@@ -61,11 +61,11 @@ type
       init*: bool
       rootdirUnmod*: string
     elif defined(linux):
-      fd: FileHandle
-      userData: pointer
-      rootDir: string
-      subdirs: seq[WatchSubdir]
-      wds: seq[cint]
+      fd*: FileHandle
+      userData*: pointer
+      rootDir*: string
+      subdirs*: seq[WatchSubdir]
+      wds*: seq[cint]
 
   DmonState* = object
     initialized*: bool

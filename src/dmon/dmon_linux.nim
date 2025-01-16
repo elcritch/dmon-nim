@@ -11,12 +11,6 @@ type
   WatchSubdir = object
     rootDir: string
 
-var 
-  dmonInitialized = false
-  dmon: DmonState
-
-const MaxPath = 260
-
 proc watchRecursive(dirname: string, fd: FileHandle, mask: uint32,
                    followLinks: bool, watch: WatchState) =
   for kind, path in walkDir(dirname):
