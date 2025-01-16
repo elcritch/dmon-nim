@@ -54,6 +54,7 @@ type
       fsEvStreamRef*: FSEventStreamRef
 
   DmonState* = object
+    initialized*: bool
     watches*: array[64, WatchState]
     freeList*: array[64, int]
     events*: seq[FsEvent]
@@ -77,6 +78,7 @@ proc watchDmonInit*(
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchState =
+  assert(dmon.initialized)
   assert(not rootdir.isEmptyOrWhitespace)
   assert(watchCb != nil)
   let rootdir = rootdir.absolutePath().expandFilename()
@@ -132,3 +134,40 @@ proc watchDmonInit*(
     result = watch
  
   notice "watchDmon: done"
+
+var
+  dmon*: DmonState
+
+proc initDmon*() =
+  initLock(dmon.threadLock)
+  initCond(dmon.threadSem)
+
+  dmon.cfAllocRef = createBasicDefaultCFAllocator()
+  echo "cfAllocRef: ", dmon.cfAllocRef.repr
+
+template startDmonThread*() =
+  mixin monitorThread
+  createThread(dmon.threadHandle, monitorThread)
+
+  wait(dmon.threadSem, dmon.threadLock)
+  notice "init dom"
+
+  for i in 0 ..< 64:
+    dmon.freeList[i] = 64 - i - 1
+  
+  dmon.initialized = true
+
+template deinitDmon*() =
+  mixin unwatch
+
+  dmon.quit = true
+  joinThread(dmon.threadHandle)
+
+  deinitCond(dmon.threadSem)
+  deinitLock(dmon.threadLock)
+
+  for i in 0 ..< dmon.numWatches:
+    if dmon.watches[i] != nil:
+      unwatchState(dmon.watches[i])
+
+  dmon = DmonState()

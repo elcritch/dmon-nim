@@ -15,9 +15,6 @@ import macosutils/fsstream
 
 import dmontypes
 
-var
-  dmonInitialized: bool
-  dmon: DmonState
 
 proc fsEventCallback(
     streamRef: FSEventStreamRef,
@@ -175,49 +172,14 @@ proc monitorThread() {.thread.} =
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef
 
-proc unwatchState(watch: WatchState) =
+proc unwatchState*(watch: WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
     FSEventStreamStop(watch.fsEvStreamRef)
     FSEventStreamInvalidate(watch.fsEvStreamRef)
     FSEventStreamRelease(watch.fsEvStreamRef)
     watch.fsEvStreamRef = nil.FSEventStreamRef
 
-proc initDmon*() =
-  assert(not dmonInitialized)
-
-  initLock(dmon.threadLock)
-  initCond(dmon.threadSem)
-
-  dmon.cfAllocRef = createBasicDefaultCFAllocator()
-  echo "cfAllocRef: ", dmon.cfAllocRef.repr
-
-  createThread(dmon.threadHandle, monitorThread)
-
-  wait(dmon.threadSem, dmon.threadLock)
-  notice "init dom"
-
-  for i in 0 ..< 64:
-    dmon.freeList[i] = 64 - i - 1
-
-  dmonInitialized = true
-
-proc deinitDmon*() =
-  assert(dmonInitialized)
-
-  dmon.quit = true
-  joinThread(dmon.threadHandle)
-
-  deinitCond(dmon.threadSem)
-  deinitLock(dmon.threadLock)
-
-  for i in 0 ..< dmon.numWatches:
-    if dmon.watches[i] != nil:
-      unwatchState(dmon.watches[i])
-
-  dmon = DmonState()
-  dmonInitialized = false
-
-proc watchDmon*(
+proc watch*(
     dmon: var DmonState,
     rootdir: string,
     watchCb: WatchCallback,
@@ -269,8 +231,8 @@ proc watchDmon*(
     result = WatchId(watch.id)
     notice "watchDmon: done"
 
-proc unwatchDmon*(id: WatchId) =
-  assert(dmonInitialized)
+proc unwatch*(id: WatchId) =
+  assert(dmon.initialized)
   assert(uint32(id) > 0)
 
   let index = int(uint32(id) - 1)
@@ -304,6 +266,8 @@ when isMainModule:
     echo "callback: ", "old: ", oldfilepath.repr
 
   initDmon()
+  startDmonThread()
+
   echo("waiting for changes ..")
   let args = commandLineParams()
   let root = 
@@ -311,7 +275,7 @@ when isMainModule:
       "./tests/"
     else:
       args[0]
-  discard dmon.watchDmon(root, cb, {Recursive}, nil)
+  discard dmon.watch(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(30_000)
   echo("done ..")
