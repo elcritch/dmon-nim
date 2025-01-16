@@ -2,8 +2,8 @@ import posix
 import std/[os, strutils, paths]
 import std/locks
 import std/inotify
-import std/times
-import std/monotimes
+# import std/times
+from std/times import getTime, Time
 
 import logging
 import dmontypes
@@ -118,9 +118,10 @@ proc processEvents(events: seq[FileEvent]) =
   for i in 0..<events.len:
     let ev = events[i]
     if ev.skip:
+      trace "skipping event: ", i = i, ev = ev.repr
       continue
 
-    let watch = dmon.watches[int(ev.watchId) - 1]
+    let watch = dmon.watches[uint32(ev.watchId) - 1]
     if watch == nil or watch.watchCb == nil:
       continue
 
@@ -161,7 +162,7 @@ proc monitorThread() {.thread.} =
   const BufferSize = sizeof(InotifyEvent) * 1024
   var buffer: array[BufferSize, byte]
   
-  var startTime: Time
+  var startTime: times.Time
   var microSecsElapsed: int64 = 0
   startTime = getTime()
 
