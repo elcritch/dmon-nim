@@ -150,7 +150,7 @@ proc watchInit*(
 var
   dmon*: DmonState
 
-proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: WatchState) {.nimcall.}) =
+proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: var WatchState) {.nimcall.}) =
   assert(dmon.initialized)
   assert(uint32(id) > 0)
 

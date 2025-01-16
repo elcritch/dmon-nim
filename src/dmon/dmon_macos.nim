@@ -171,12 +171,13 @@ proc monitorThread() {.thread.} =
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef
 
-proc unwatchState(watch: WatchState) =
+proc unwatchState(watch: var WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
     FSEventStreamStop(watch.fsEvStreamRef)
     FSEventStreamInvalidate(watch.fsEvStreamRef)
     FSEventStreamRelease(watch.fsEvStreamRef)
     watch.fsEvStreamRef = nil.FSEventStreamRef
+    watch = nil
 
 proc watch*(
     dmon: var DmonState,
