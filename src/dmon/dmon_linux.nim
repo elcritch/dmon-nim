@@ -77,12 +77,14 @@ proc watch*(
         watch.rootDir, watch.fd, inotifyMask.cuint, FollowSymlinks in flags
       )
 
-    return id
+    result = WatchId(watch.id)
+    notice "watchDmon: done"
 
-# Unwatch a directory
-proc unwatch*(id: WatchId) =
-  assert dmonInitialized
-  assert uint32(id) > 0
+proc unwatchState(watch: WatchState) =
+  if watch != nil:
+    discard close(watch.fd)
+
+proc unwatchState*(id: WatchId) =
 
   let index = int(id) - 1
   assert index < 64
@@ -90,8 +92,7 @@ proc unwatch*(id: WatchId) =
   assert dmon.numWatches > 0
 
   if dmon.watches[index] != nil:
-    withLock dmon.mutex:
-      discard close(dmon.watches[index].fd)
+    withLock dmon.threadLock:
       dmon.watches[index] = nil
 
       dec dmon.numWatches
