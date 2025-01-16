@@ -29,12 +29,12 @@ type
     userData: pointer,
   )
 
-  DmonFsEvent* = ref object
+  DmonFsEvent* = ref object of RootObj
     filepath: string
     watchId: DmonWatchId
     skip: bool
 
-  DmonWatchState* = ref object
+  DmonWatchState* = ref object of RootObj
     id: DmonWatchId
     watchFlags: set[DmonWatchFlags]
     watchCb: DmonWatchCallback

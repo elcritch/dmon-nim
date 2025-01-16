@@ -22,7 +22,6 @@ type
     moveValid: bool
 
   MacOSWatchState* = ref object of DmonWatchState
-    init: bool
     fsEvStreamRef: FSEventStreamRef
 
   MacOSState = object
