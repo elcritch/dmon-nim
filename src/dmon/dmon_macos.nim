@@ -275,8 +275,9 @@ when isMainModule:
       "./tests/"
     else:
       args[0]
-  discard dmon.watch(root, cb, {Recursive}, nil)
+  let watchId = dmon.watch(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(30_000)
+  watchId.unwatch()
   echo("done ..")
   deinitDmon()
