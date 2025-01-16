@@ -44,31 +44,10 @@ proc findSubdir(watch: WatchState, wd: cint): string =
       return watch.subdirs[i].rootDir
   return ""
 
-# Main initialization
-proc init*() =
-  assert not dmonInitialized
-  initLock(dmon.mutex)
-  
-  # Initialize freeList array
-  for i in 0..<64:
-    dmon.freeList[i] = 63 - i
-    
-  dmonInitialized = true
-
-# Main deinitialization
-proc deinit*() =
-  assert dmonInitialized
-  dmon.quit = true
-  joinThread(dmon.thread)
-  
-  for i in 0..<dmon.numWatches:
-    if dmon.watches[i] != nil:
-      discard close(dmon.watches[i].fd)
-      dmon.watches[i] = nil
-      
-  dmon.events.setLen(0)
-  dmon.mutex.deinitLock()
-  dmonInitialized = false
+proc unwatchState(watch: WatchState) =
+  if dmon.watches[i] != nil:
+    discard close(dmon.watches[i].fd)
+    dmon.watches[i] = nil
 
 # Main watch function
 proc watch*(rootDir: string, callback: WatchCallback, 

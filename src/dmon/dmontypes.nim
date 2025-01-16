@@ -176,6 +176,7 @@ template unwatch*(id: WatchId) =
 
 template initDmon*() =
   mixin initDmonImpl
+  assert(not dmon.initialized)
   initLock(dmon.threadLock)
   initCond(dmon.threadSem)
   initDmonImpl()
@@ -208,4 +209,5 @@ template deinitDmon*() =
     if dmon.watches[i] != nil:
       unwatchState(dmon.watches[i])
 
+  dmon.events.setLen(0)
   dmon = DmonState()
