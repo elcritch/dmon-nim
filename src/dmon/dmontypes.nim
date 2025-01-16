@@ -14,7 +14,7 @@ elif defined(linux):
   type
     WatchSubdir* = object
       rootDir*: string
-elif defined(windows):
+elif defined(windows) or defined(winTest):
   import winim/lean
 
 type
@@ -47,10 +47,10 @@ type
       eventId*: FSEventStreamEventId
       eventFlags*: set[FSEventStreamEventFlag]
       moveValid*: bool
-    elif defined(linux):
+    elif defined(linux) and not defined(winTest):
       mask*: uint32
       cookie*: uint32
-    elif defined(windows):
+    elif defined(windows) or defined(winTest):
       filepath*: array[260, char]
       action*: DWORD
 
@@ -64,11 +64,11 @@ type
       fsEvStreamRef*: FSEventStreamRef
       init*: bool
       rootDirUnmod*: string
-    elif defined(linux):
+    elif defined(linux) and not defined(winTest):
       fd*: FileHandle
       subdirs*: seq[WatchSubdir]
       wds*: seq[cint]
-    elif defined(windows):
+    elif defined(windows) or defined(winTest):
       oldFilepath*: array[260, char]
       notifyFilter*: DWORD
       overlapped*: OVERLAPPED
@@ -85,7 +85,7 @@ type
     threadLock*: Lock
     threadSem*: Cond
     quit*: bool
-    when defined(macosx):
+    when defined(macosx) and not defined(winTest):
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
