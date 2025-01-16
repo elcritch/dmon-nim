@@ -281,7 +281,7 @@ proc watchDmon*(
   assert(dmonInitialized)
   assert(not rootdir.isEmptyOrWhitespace)
   assert(watchCb != nil)
-  let rootdir = rootdir.absolutePath.expandFilename()
+  let rootdir = rootdir.absolutePath().expandFilename()
 
   notice "watchDmon: starting"
   # dmon.modifyWatches.store(1)
