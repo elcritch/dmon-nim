@@ -233,4 +233,4 @@ proc watch*(
 
 proc initDmonImpl() =
   dmon.cfAllocRef = createBasicDefaultCFAllocator()
-  echo "cfAllocRef: ", dmon.cfAllocRef.repr
+  info "initDmonImpl: cfAllocRef: ", dmon.cfAllocRef.repr

@@ -275,4 +275,5 @@ proc watch*(
     notice "watchDmon: done"
 
 proc initDmonImpl*() =
+  info "initDmonImpl: "
   discard
