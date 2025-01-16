@@ -126,18 +126,17 @@ proc processEvents() =
       continue
 
     # Coalesce multiple modify events
-    if ev.eventFlags.contains(kFSEventStreamEventFlagItemModified):
+    if ev.eventFlags.contains(ItemModified):
       for checkEv in events[i+1..^1]:
-        if checkEv.eventFlags.contains(kFSEventStreamEventFlagItemModified) and
+        if checkEv.eventFlags.contains(ItemModified) and
             checkEv.filepath == ev.filepath:
           ev.skip = true
           break
 
     # Handle renames
-    elif ev.eventFlags.contains(kFSEventStreamEventFlagItemRenamed) and not ev.moveValid:
+    elif ev.eventFlags.contains(ItemRenamed) and not ev.moveValid:
       for checkEv in events[i+1..^1]:
-        let checkEv = dmon.events[j]
-        if checkEv.eventFlags.contains(kFSEventStreamEventFlagItemRenamed) and
+        if checkEv.eventFlags.contains(ItemRenamed) and
             checkEv.eventId == ev.eventId + 1:
           ev.moveValid = true
           checkEv.moveValid = true
@@ -149,14 +148,14 @@ proc processEvents() =
       # // so if the destination of the move is not valid, it's probably DELETE or CREATE
       # // decide CREATE if file exists
       if not ev.moveValid:
-        ev.eventFlags.excl kFSEventStreamEventFlagItemRenamed
+        ev.eventFlags.excl ItemRenamed
         let watch = dmon.watches[ev.watchId.uint32 - 1]
         let absPath = watch.rootdir / ev.filepath
 
         if not fileExists(absPath):
-          ev.eventFlags.incl kFSEventStreamEventFlagItemRemoved
+          ev.eventFlags.incl ItemRemoved
         else:
-          ev.eventFlags.incl kFSEventStreamEventFlagItemCreated
+          ev.eventFlags.incl ItemCreated
 
   # Process final events
   for i in 0 ..< events.len:
@@ -170,25 +169,25 @@ proc processEvents() =
     if watch == nil or watch.watchCb == nil:
       continue
 
-    if ev.eventFlags.contains(kFSEventStreamEventFlagItemCreated):
+    if ev.eventFlags.contains(ItemCreated):
       watch.watchCb(
         ev.watchId, Create, watch.rootdirUnmod, ev.filepath, "", watch.userData
       )
 
-    if ev.eventFlags.contains(kFSEventStreamEventFlagItemModified):
+    if ev.eventFlags.contains(ItemModified):
       watch.watchCb(
         ev.watchId, Modify, watch.rootdirUnmod, ev.filepath, "", watch.userData
       )
-    elif ev.eventFlags.contains(kFSEventStreamEventFlagItemRenamed):
+    elif ev.eventFlags.contains(ItemRenamed):
       for j in (i + 1) ..< dmon.events.len:
         let checkEv = addr dmon.events[j]
-        if checkEv.eventFlags.contains(kFSEventStreamEventFlagItemRenamed):
+        if checkEv.eventFlags.contains(ItemRenamed):
           watch.watchCb(
             checkEv.watchId, Move, watch.rootdirUnmod, checkEv.filepath, ev.filepath,
             watch.userData,
           )
           break
-    elif ev.eventFlags.contains(kFSEventStreamEventFlagItemRemoved):
+    elif ev.eventFlags.contains(ItemRemoved):
       watch.watchCb(
         ev.watchId, Delete, watch.rootdirUnmod, ev.filepath, "", watch.userData
       )
@@ -354,9 +353,9 @@ proc watchDmon*(
       release: nil,
       copyDescription: nil,
     )
-    let flags = {kFSEventStreamCreateFlagFileEvents, kFSEventStreamCreateFlagNoDefer}
-    notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, kFSEventStreamCreateFlagFileEvents = cast[uint]({kFSEventStreamCreateFlagFileEvents})
-    assert cast[uint64]({kFSEventStreamCreateFlagFileEvents}) == 0x00000010'u32 
+    let flags = {FileEvents, NoDefer}
+    notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
+    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32 
     watch.fsEvStreamRef = FSEventStreamCreate(
       dmon.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function
