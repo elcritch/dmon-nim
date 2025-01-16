@@ -1,5 +1,6 @@
 import std/os
 import dmon
+import dmon/logging
 
 proc main() =
   let cb: WatchCallback = proc(
