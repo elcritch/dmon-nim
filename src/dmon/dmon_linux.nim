@@ -184,46 +184,45 @@ proc processWatches() =
   timeout.tv_sec = posix.Time(0)
   timeout.tv_usec = Suseconds(500_000) # 100ms timeout
 
-  if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
-    trace "monitor: select readfds "
-    for watch in dmonInst.watchStates():
-      trace "process watch ", watch = watch.repr
-      assert watch != nil
-      if FD_ISSET(watch.fd.cint, readfds) != 0:
-        trace "inotify isset: ", watchFd = watch.fd
+  if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
+    return
 
-        var events: array[MaxWatches, byte]  # event buffer
-        while true:
-          let n = read(watch.fd, addr events, MaxWatches)
-          if n <= 0:
-            trace "processWatches: inotify events: ", watchFd = watch.fd
-            break
-          # blocks until any events have been read
-          for iev in inotify_events(addr events, n):
-            let watchId = iev[].wd
-            let mask = iev[].mask
-            let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
-            let subdir = watch.findSubdir(watchId)
-            trace "processWatches: inotify events: post",
-              watchId = watchId, mask = mask, name = name, subdir = subdir
+  trace "monitor: select readfds "
+  for watch in dmonInst.watchStates():
+    trace "process watch ", watch = watch.repr
+    assert watch != nil
+    if FD_ISSET(watch.fd.cint, readfds) != 0:
+      trace "inotify isset: ", watchFd = watch.fd
 
-            if subdir.len > 0:
-              let filepath = subdir / name
-              
-              # if dmonInst.events.len == 0:
-              #   microSecsElapsed = 0
-                
-              var event = FileEvent(
-                filePath: filepath,
-                mask: iev.mask,
-                cookie: iev.cookie,
-                watchId: watch.id,
-                skip: false
-              )
-              dmonInst.events.add(event)
-          trace "processWatches: finished inotify events", watchFd = watch.fd
-          processEvents(move dmonInst.events)
-          assert dmonInst.events.len() == 0
+      var events: array[MaxWatches, byte]  # event buffer
+      while true:
+        let n = read(watch.fd, addr events, MaxWatches)
+        if n <= 0:
+          trace "processWatches: inotify events: ", watchFd = watch.fd
+          break
+        # blocks until any events have been read
+        for iev in inotify_events(addr events, n):
+          let watchId = iev[].wd
+          let mask = iev[].mask
+          let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
+          let subdir = watch.findSubdir(watchId)
+          trace "processWatches: inotify events: post",
+            watchId = watchId, mask = mask, name = name, subdir = subdir
+
+          if subdir.len > 0:
+            let filepath = subdir / name
+
+            var event = FileEvent(
+              filePath: filepath,
+              mask: iev.mask,
+              cookie: iev.cookie,
+              watchId: watch.id,
+              skip: false
+            )
+            dmonInst.events.add(event)
+        trace "processWatches: finished inotify events", watchFd = watch.fd
+        processEvents(move dmonInst.events)
+        assert dmonInst.events.len() == 0
 
   # Check elapsed time and process events if needed
   # let currentTime = getTime()
