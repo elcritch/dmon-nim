@@ -1,4 +1,7 @@
 
+import dmon/dmontypes
+export dmontypes
+
 when defined(macosx):
   import dmon/dmon_macos
   export dmon_macos
