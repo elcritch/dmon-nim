@@ -31,7 +31,7 @@ proc fsEventCallback(
   let eventFlags = cast[ptr UncheckedArray[set[FSEventStreamEventFlag]]](eventFlags)
   let eventIds = cast[ptr UncheckedArray[FSEventStreamEventId]](eventFlags)
 
-  let watch = dmon.watches[uint32(watchId) - 1]
+  let watch = dmonInst.watches[uint32(watchId) - 1]
   # we set 
   let paths = cast[cstringArray](eventPaths)
 
@@ -59,10 +59,10 @@ proc fsEventCallback(
     ev.watchId = watchId
 
     debug "fsEventCallback:event:adding: ", ev = ev.repr
-    dmon.events.add(ev)
+    dmonInst.events.add(ev)
 
 proc processEvents(events: seq[FileEvent]) =
-  trace "processing processEvents ", eventsLen = dmon.events.len
+  trace "processing processEvents ", eventsLen = dmonInst.events.len
   for i, ev in events:
     if ev.skip:
       continue
@@ -91,7 +91,7 @@ proc processEvents(events: seq[FileEvent]) =
       # // decide CREATE if file exists
       if not ev.moveValid:
         ev.eventFlags.excl ItemRenamed
-        let watch = dmon.watches[ev.watchId.uint32 - 1]
+        let watch = dmonInst.watches[ev.watchId.uint32 - 1]
         let absPath = watch.rootDir / ev.filepath
 
         if not fileExists(absPath):
@@ -105,7 +105,7 @@ proc processEvents(events: seq[FileEvent]) =
       trace "skipping event: ", i = i, ev = ev.repr
       continue
 
-    let watch = dmon.watches[uint32(ev.watchId) - 1]
+    let watch = dmonInst.watches[uint32(ev.watchId) - 1]
     if watch == nil or watch.watchCb == nil:
       continue
 
@@ -119,8 +119,8 @@ proc processEvents(events: seq[FileEvent]) =
         ev.watchId, Modify, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
     elif ev.eventFlags.contains(ItemRenamed):
-      for j in (i + 1) ..< dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for j in (i + 1) ..< dmonInst.events.len:
+        let checkEv = addr dmonInst.events[j]
         if checkEv.eventFlags.contains(ItemRenamed):
           watch.watchCb(
             checkEv.watchId, Move, watch.rootDirUnmod, checkEv.filepath, ev.filepath,
@@ -133,12 +133,12 @@ proc processEvents(events: seq[FileEvent]) =
       )
 
 proc processWatches() =
-  for watch in dmon.watchStates():
+  for watch in dmonInst.watchStates():
     if not watch.init:
       info "initialize watch ", watch = watch.repr
       assert(not watch.fsEvStreamRef.pointer.isNil)
       FSEventStreamScheduleWithRunLoop(
-        watch.fsEvStreamRef, dmon.cfLoopRef, kCFRunLoopDefaultMode
+        watch.fsEvStreamRef, dmonInst.cfLoopRef, kCFRunLoopDefaultMode
       )
       let sres = FSEventStreamStart(watch.fsEvStreamRef)
       debug "initialized watch ", sres = sres.repr
@@ -146,18 +146,18 @@ proc processWatches() =
 
   let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
   trace "CFRunLoopRunInMode result: ", res = res
-  processEvents(move dmon.events)
-  assert dmon.events.len() == 0
+  processEvents(move dmonInst.events)
+  assert dmonInst.events.len() == 0
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
-    dmon.cfLoopRef = CFRunLoopGetCurrent()
+    dmonInst.cfLoopRef = CFRunLoopGetCurrent()
 
     threadExec()
 
-    CFRunLoopStop(dmon.cfLoopRef)
-    dmon.cfLoopRef = nil.CFRunLoopRef
+    CFRunLoopStop(dmonInst.cfLoopRef)
+    dmonInst.cfLoopRef = nil.CFRunLoopRef
 
 proc unwatchState(watch: var WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
@@ -168,16 +168,15 @@ proc unwatchState(watch: var WatchState) =
     watch = nil
 
 proc watch*(
-    dmon: var DmonState,
     rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchId =
   ## Create Dmon watch using FSEvents stream
-  let watch = dmon.watchInit(rootDir, watchCb, flags, userData)
+  let watch = dmonInst.watchInit(rootDir, watchCb, flags, userData)
 
-  withLock dmon.threadLock:
+  withLock dmonInst.threadLock:
     let cfPath = CFStringCreateWithCString(
       nil.CFAllocatorRef, watch.rootDirUnmod.cstring, kCFStringEncodingUTF8
     )
@@ -199,7 +198,7 @@ proc watch*(
     let flags = {FileEvents, NoDefer}
     notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
     watch.fsEvStreamRef = FSEventStreamCreate(
-      dmon.cfAllocRef, # Use default allocator
+      dmonInst.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function
       addr ctx, # Context with watch ID
       cfPaths, # Array of paths to watch
@@ -211,15 +210,15 @@ proc watch*(
 
     if watch.fsEvStreamRef.pointer.isNil:
       warn "Failed to create FSEvents stream"
-      dec dmon.numWatches
+      dec dmonInst.numWatches
       raise newException(ValueError, "Exceeding maximum number of watches")
 
     notice "FSEventStreamCreated ", fsEvStreamRef = watch.fsEvStreamRef.pointer.repr
-    # dmon.modifyWatches.store(0)
+    # dmonInst.modifyWatches.store(0)
     result = WatchId(watch.id)
     notice "watchDmon: done"
 
 proc initDmonImpl*() =
-  dmon.cfAllocRef = createBasicDefaultCFAllocator()
-  info "initDmonImpl: ", cfAllocRef = dmon.cfAllocRef.repr
+  dmonInst.cfAllocRef = createBasicDefaultCFAllocator()
+  info "initDmonImpl: ", cfAllocRef = dmonInst.cfAllocRef.repr
 

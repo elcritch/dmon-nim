@@ -25,7 +25,7 @@ proc main() =
       "./tests/"
     else:
       args[0]
-  let watchId: WatchId = dmon.watch(
+  let watchId: WatchId = watch(
     root,
     cb,
     {Recursive},

@@ -79,12 +79,14 @@ type
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
+var
+  dmonInst*: DmonState
+
 iterator watchStates*(dmonInst: DmonState): WatchState =
   for i in 0 ..< dmonInst.numWatches:
     yield dmonInst.watches[i]
 
 proc watchInit*(
-    dmonInst: var DmonState,
     rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags],
@@ -146,9 +148,6 @@ proc watchInit*(
     result = watch
  
   notice "watchDmon: done"
-
-var
-  dmonInst*: DmonState
 
 template threadExec*() =
   notice "starting thread"
