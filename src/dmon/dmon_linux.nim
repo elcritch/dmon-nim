@@ -184,13 +184,13 @@ proc monitorThread() {.thread.} =
           FD_SET(watch.fd.cint, readfds)
 
       var timeout: Timeval
-      timeout.tv_sec = Time(0)
+      timeout.tv_sec = posix.Time(0)
       timeout.tv_usec = Suseconds(100_000) # 100ms timeout
 
       if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
         for i in 0..<dmon.numWatches:
           let watch = dmon.watches[i]
-          if watch != nil and FD_ISSET(watch.fd.cint, readfds):
+          if watch != nil and FD_ISSET(watch.fd.cint, readfds) != 0:
             var offset = 0
             let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
             
@@ -198,7 +198,7 @@ proc monitorThread() {.thread.} =
               continue
 
             while offset < bytesRead:
-              let iev = cast[ptr InotifyEvent](addr buffer[offset])
+              let iev = cast[ptr FileEvent](addr buffer[offset])
               let subdir = watch.findSubdir(iev.wd)
               
               if subdir.len > 0:
@@ -207,7 +207,7 @@ proc monitorThread() {.thread.} =
                 if dmon.events.len == 0:
                   microSecsElapsed = 0
                   
-                var event = InotifyEvent(
+                var event = FileEvent(
                   filePath: filepath,
                   mask: iev.mask,
                   cookie: iev.cookie,
@@ -216,7 +216,7 @@ proc monitorThread() {.thread.} =
                 )
                 dmon.events.add(event)
 
-              offset += sizeof(InotifyEvent) + iev.len
+              offset += sizeof(FileEvent) + iev.len
 
       # Check elapsed time and process events if needed
       let currentTime = getTime()
