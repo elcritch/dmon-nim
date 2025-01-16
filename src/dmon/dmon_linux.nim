@@ -159,11 +159,11 @@ proc processEvents(events: seq[FileEvent]) =
   dmon.events.setLen(0)
 
 proc monitorThread() {.thread.} =
-  const BufferSize = sizeof(InotifyEvent) * 1024
-  var buffer: array[BufferSize, byte]
+  const BufferSize = sizeof(FileEvent) * 1024
+  var buffer: array[1024, InotifyEvent]
   
   var startTime: times.Time
-  var microSecsElapsed: int64 = 0
+  # var microSecsElapsed: int64 = 0
   startTime = getTime()
 
   while not dmon.quit:
@@ -171,7 +171,6 @@ proc monitorThread() {.thread.} =
       os.sleep(100)
       # debug "monitorThread: no numWatches: "
       continue
-      
 
     withLock(dmon.threadLock):
       var readfds: TFdSet
@@ -190,22 +189,28 @@ proc monitorThread() {.thread.} =
       if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
         for i in 0..<dmon.numWatches:
           let watch = dmon.watches[i]
-          if watch != nil and FD_ISSET(watch.fd.cint, readfds) != 0:
-            var offset = 0
+          assert watch != nil
+          if FD_ISSET(watch.fd.cint, readfds) != 0:
+            var idx = 0
+            # read events
             let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
             
             if bytesRead <= 0:
               continue
 
-            while offset < bytesRead:
-              let iev = cast[ptr FileEvent](addr buffer[offset])
+            let cnt = bytesRead div sizeof(InotifyEvent)
+            for idx in 0 ..< cnt:
+              let item = buffer[cnt]
+              let iev = item
+              # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
+              # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
               let subdir = watch.findSubdir(iev.wd)
               
               if subdir.len > 0:
-                let filepath = subdir & $cast[cstring](addr buffer[offset + sizeof(InotifyEvent)])
+                let filepath = subdir & $cast[cstring](addr buffer[cnt])
                 
-                if dmon.events.len == 0:
-                  microSecsElapsed = 0
+                # if dmon.events.len == 0:
+                #   microSecsElapsed = 0
                   
                 var event = FileEvent(
                   filePath: filepath,
@@ -216,17 +221,15 @@ proc monitorThread() {.thread.} =
                 )
                 dmon.events.add(event)
 
-              offset += sizeof(FileEvent) + iev.len
-
       # Check elapsed time and process events if needed
-      let currentTime = getTime()
-      let dt = (currentTime - startTime).inMicroseconds
-      startTime = currentTime
-      microSecsElapsed += dt
+      # let currentTime = getTime()
+      # let dt = (currentTime - startTime).inMicroseconds
+      # startTime = currentTime
+      # microSecsElapsed += dt
       
-      if microSecsElapsed > 100_000 and dmon.events.len > 0:
-        processEvents()
-        microSecsElapsed = 0
+      # if microSecsElapsed > 100_000 and dmon.events.len > 0:
+      processEvents(move dmon.events)
+      # microSecsElapsed = 0
 
     sleep(10) # Sleep for 10ms
 
