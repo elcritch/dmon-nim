@@ -2,6 +2,8 @@ import posix
 import std/[os, strutils, paths]
 import std/locks
 import std/inotify
+import std/times
+import std/monotimes
 
 import logging
 import dmontypes
@@ -122,7 +124,7 @@ proc processEvents() =
       continue
 
     if (ev.mask and IN_CREATE) != 0:
-      if (ev.mask and IN_ISDIR) != 0 and wfRecursive in watch.watchFlags:
+      if (ev.mask and IN_ISDIR) != 0 and Recursive in watch.watchFlags:
         var watchDir = watch.rootDir & ev.filePath & "/"
         let inotifyMask = IN_MOVED_TO or IN_CREATE or IN_MOVED_FROM or IN_DELETE or IN_MODIFY
         
@@ -136,21 +138,21 @@ proc processEvents() =
         watch.subdirs.add subdir
         watch.wds.add wd
 
-      watch.watchCb(ev.watchId, aCreate, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.watchCb(ev.watchId, Create, watch.rootDir, ev.filePath, "", watch.userData)
 
     elif (ev.mask and IN_MODIFY) != 0:
-      watch.watchCb(ev.watchId, aModify, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.watchCb(ev.watchId, Modify, watch.rootDir, ev.filePath, "", watch.userData)
 
     elif (ev.mask and IN_MOVED_FROM) != 0:
       for j in (i+1)..<dmon.events.len:
         let checkEv = addr dmon.events[j]
         if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
-          watch.watchCb(checkEv.watchId, aMove, watch.rootDir,
+          watch.watchCb(checkEv.watchId, Move, watch.rootDir,
                        checkEv.filePath, ev.filePath, watch.userData)
           break
 
     elif (ev.mask and IN_DELETE) != 0:
-      watch.watchCb(ev.watchId, aDelete, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.watchCb(ev.watchId, Delete, watch.rootDir, ev.filePath, "", watch.userData)
 
   dmon.events.setLen(0)
 
