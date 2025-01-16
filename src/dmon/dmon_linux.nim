@@ -42,7 +42,9 @@ proc watchRecursive(
 
 proc findSubdir(watch: WatchState, wd: cint): string =
   for i, watchWd in watch.wds:
+    trace "findSubDir", watchWd = watchWd, wd = wd
     if wd == watchWd:
+      trace "findSubDir: found", rootDir = watch.subdirs[i].rootDir
       return watch.subdirs[i].rootDir
   return ""
 
@@ -202,7 +204,7 @@ proc processWatches() =
             let mask = iev[].mask
             let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
             let subdir = watch.findSubdir(watchId)
-            trace "processWatches: inotify events: ",
+            trace "processWatches: inotify events: post",
               watchId = watchId, mask = mask, name = name, subdir = subdir
 
             if subdir.len > 0:
@@ -266,7 +268,7 @@ proc watch*(
     if wd < 0:
       return WatchId(0)
 
-    watch.subdirs.add WatchSubdir(rootDir: "")
+    watch.subdirs.add WatchSubdir(rootDir: watch.rootDir)
     watch.wds.add wd
 
     # Handle recursive watching if requested
