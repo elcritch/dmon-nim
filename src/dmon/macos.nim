@@ -37,7 +37,7 @@ type
   DmonFsEvent = object
     filepath: string
     eventId: FSEventStreamEventId
-    eventFlags: set[FSEventStreamEventFlags]
+    eventFlags: set[FSEventStreamEventFlag]
     watchId: DmonWatchId
     skip: bool
     moveValid: bool
@@ -78,13 +78,15 @@ proc fsEventCallback(
     userData: pointer,
     numEvents: csize_t,
     eventPaths: pointer,
-    eventFlags: UncheckedArray[set[FSEventStreamEventFlags]],
-    eventIds: UncheckedArray[FSEventStreamEventId],
+    eventFlags: ptr FSEventStreamEventFlags,
+    eventIds: ptr FSEventStreamEventId,
 ) {.cdecl.} =
   let watchId = cast[DmonWatchId](userData)
   assert(uint32(watchId) > 0)
 
   notice "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int, streamRef = streamRef.pointer.repr
+  let eventFlags = cast[ptr UncheckedArray[set[FSEventStreamEventFlag]]](eventFlags)
+  let eventIds = cast[ptr UncheckedArray[FSEventStreamEventId]](eventFlags)
 
   let watch = dmon.watches[uint32(watchId) - 1]
   # we set 
@@ -160,6 +162,7 @@ proc processEvents() =
   for i in 0 ..< dmon.events.len:
     let ev = addr dmon.events[i]
     if ev.skip:
+      debug "skipping event: ", i = i, ev = ev.repr
       continue
 
     let watch = dmon.watches[uint32(ev.watchId) - 1]
@@ -363,7 +366,7 @@ proc watchDmon*(
       kFSEventStreamEventIdSinceNow, # Start from now
       # FSEventStreamEventId(0), # kFSEventStreamEventIdSinceNow, # Start from now
       0.25, # Latency in seconds
-      flags, # File-level events
+      flags.toBase(), # File-level events
     )
 
     if watch.fsEvStreamRef.pointer.isNil:
