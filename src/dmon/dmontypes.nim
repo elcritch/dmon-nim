@@ -162,9 +162,8 @@ template threadExec*() =
       debug "monitorThread: no numWatches: "
       continue
 
-    withLock(dmonInst.threadLock):
-      # debug "processing watches ", numWatches = dmonInst.numWatches
-      processWatches()
+    # debug "processing watches ", numWatches = dmonInst.numWatches
+    processWatches()
 
     os.sleep(100)
 

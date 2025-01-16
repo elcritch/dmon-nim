@@ -173,12 +173,13 @@ proc processWatches() =
   # var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
   var readfds: TFdSet
   FD_ZERO(readfds)
-  
-  # Add all watch file descriptors to the set
-  for i in 0..<dmonInst.numWatches:
-    let watch = dmonInst.watches[i]
-    if watch != nil:
-      FD_SET(watch.fd.cint, readfds)
+    
+  withLock(dmonInst.threadLock):
+    # Add all watch file descriptors to the set
+    for i in 0..<dmonInst.numWatches:
+      let watch = dmonInst.watches[i]
+      if watch != nil:
+        FD_SET(watch.fd.cint, readfds)
 
   var timeout: Timeval
   timeout.tv_sec = posix.Time(0)
@@ -187,51 +188,52 @@ proc processWatches() =
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
     return
 
-  trace "monitor: select readfds "
-  for watch in dmonInst.watchStates():
-    trace "process watch ", watch = watch.repr
-    assert watch != nil
-    if FD_ISSET(watch.fd.cint, readfds) != 0:
-      trace "inotify isset: ", watchFd = watch.fd
+  withLock(dmonInst.threadLock):
+    trace "monitor: select readfds "
+    for watch in dmonInst.watchStates():
+      trace "process watch ", watch = watch.repr
+      assert watch != nil
+      if FD_ISSET(watch.fd.cint, readfds) != 0:
+        trace "inotify isset: ", watchFd = watch.fd
 
-      var events: array[MaxWatches, byte]  # event buffer
-      while true:
-        let n = read(watch.fd, addr events, MaxWatches)
-        if n <= 0:
-          trace "processWatches: inotify events: ", watchFd = watch.fd
-          break
-        # blocks until any events have been read
-        for iev in inotify_events(addr events, n):
-          let watchId = iev[].wd
-          let mask = iev[].mask
-          let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
-          let subdir = watch.findSubdir(watchId)
-          trace "processWatches: inotify events: post",
-            watchId = watchId, mask = mask, name = name, subdir = subdir
+        var events: array[MaxWatches, byte]  # event buffer
+        while true:
+          let n = read(watch.fd, addr events, MaxWatches)
+          if n <= 0:
+            trace "processWatches: inotify events: ", watchFd = watch.fd
+            break
+          # blocks until any events have been read
+          for iev in inotify_events(addr events, n):
+            let watchId = iev[].wd
+            let mask = iev[].mask
+            let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
+            let subdir = watch.findSubdir(watchId)
+            trace "processWatches: inotify events: post",
+              watchId = watchId, mask = mask, name = name, subdir = subdir
 
-          if subdir.len > 0:
-            let filepath = subdir / name
+            if subdir.len > 0:
+              let filepath = subdir / name
 
-            var event = FileEvent(
-              filePath: filepath,
-              mask: iev.mask,
-              cookie: iev.cookie,
-              watchId: watch.id,
-              skip: false
-            )
-            dmonInst.events.add(event)
-        trace "processWatches: finished inotify events", watchFd = watch.fd
-        processEvents(move dmonInst.events)
-        assert dmonInst.events.len() == 0
+              var event = FileEvent(
+                filePath: filepath,
+                mask: iev.mask,
+                cookie: iev.cookie,
+                watchId: watch.id,
+                skip: false
+              )
+              dmonInst.events.add(event)
+          trace "processWatches: finished inotify events", watchFd = watch.fd
+          processEvents(move dmonInst.events)
+          assert dmonInst.events.len() == 0
 
-  # Check elapsed time and process events if needed
-  # let currentTime = getTime()
-  # let dt = (currentTime - startTime).inMicroseconds
-  # startTime = currentTime
-  # microSecsElapsed += dt
-  
-  # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
-  # microSecsElapsed = 0
+    # Check elapsed time and process events if needed
+    # let currentTime = getTime()
+    # let dt = (currentTime - startTime).inMicroseconds
+    # startTime = currentTime
+    # microSecsElapsed += dt
+    
+    # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
+    # microSecsElapsed = 0
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
