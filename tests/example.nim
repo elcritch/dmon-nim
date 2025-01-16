@@ -25,13 +25,9 @@ proc main() =
       "./tests/"
     else:
       args[0]
-  let watchId: WatchId = watch(
-    root,
-    cb,
-    {Recursive},
-    nil
-  )
+  let watchId: WatchId = watch( root, cb, {Recursive}, nil)
   echo "watchId:repr: ", watchId.repr
+  let watchId2: WatchId = watch("src/", cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(30_000)
   watchId.unwatch()
