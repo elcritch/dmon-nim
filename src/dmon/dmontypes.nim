@@ -38,9 +38,9 @@ type
     watchId*: DmonWatchId
     skip*: bool
     when defined(macosx):
-      eventId: FSEventStreamEventId
-      eventFlags: set[FSEventStreamEventFlag]
-      moveValid: bool
+      eventId*: FSEventStreamEventId
+      eventFlags*: set[FSEventStreamEventFlag]
+      moveValid*: bool
 
   DmonWatchState* = ref object of RootObj
     id*: DmonWatchId
@@ -51,22 +51,20 @@ type
     rootdirUnmod*: string
     init*: bool
     when defined(macosx):
-      fsEvStreamRef: FSEventStreamRef
+      fsEvStreamRef*: FSEventStreamRef
 
-  DmonState*[T, FSEvent] = object
+  DmonState* = object
     watches*: array[64, DmonWatchState]
     freeList*: array[64, int]
-    events*: seq[FSEvent]
+    events*: seq[DmonFsEvent]
     numWatches*: int
     threadHandle*: Thread[void]
     threadLock*: Lock
     threadSem*: Cond
     quit*: bool
-    osState*: T
     when defined(macosx):
-      fsEvStreamRef: FSEventStreamRef
-      cfLoopRef: CFRunLoopRef
-      cfAllocRef: CFAllocatorRef
+      cfLoopRef*: CFRunLoopRef
+      cfAllocRef*: CFAllocatorRef
 
 proc watchDmon*(
     dmon: var DmonState,
