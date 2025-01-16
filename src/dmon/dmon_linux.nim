@@ -52,49 +52,10 @@ proc unwatchState(watch: WatchState) =
 # Main watch function
 proc watch*(rootDir: string, callback: WatchCallback, 
            flags: set[WatchFlags] = {}, userData: pointer = nil): WatchId =
-  assert dmonInitialized
-  assert callback != nil
-  assert rootDir.len > 0
+  let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
   
   withLock dmon.mutex:
-    assert dmon.numWatches < 64, "Exceeding maximum number of watches"
-    
-    let numFreeList = 64 - dmon.numWatches
-    let index = dmon.freeList[numFreeList - 1]
-    let id = WatchId(index + 1)
-    
-    if dmon.watches[index] == nil:
-      dmon.watches[index] = WatchState()
-    
-    inc dmon.numWatches
-    
-    let watch = dmon.watches[index]
-    watch.id = id
-    watch.watchFlags = flags
-    watch.watchCb = callback
-    watch.userData = userData
-    
-    # Verify directory exists and is readable
-    try:
-      # let info = getFileInfo(rootDir)
-      if not rootDir.dirExists(): # or not os.fileAccessible(rootDir, {fpUserRead}):
-        raise newException(OSError, "Could not open/read directory: " & rootDir)
-        
-      if info.kind == pcLinkToDir:
-        if wfFollowSymlinks in flags:
-          watch.rootDir = expandSymlink(rootDir)
-        else:
-          raise newException(OSError, "Symlinks unsupported without wfFollowSymlinks flag")
-      else:
-        watch.rootDir = rootDir
-        
-    except OSError as e:
-      return WatchId(0)
-    
-    # Ensure rootDir ends with /
-    if not watch.rootDir.endsWith("/"): 
-      watch.rootDir.add '/'
-      
+
     # Initialize inotify
     watch.fd = inotify_init().FileHandle
     if watch.fd.cint < 0:

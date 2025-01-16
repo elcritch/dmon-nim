@@ -47,7 +47,7 @@ proc fsEventCallback(
     var ev = FileEvent()
     # Convert path to unix style and make relative to watch root
     var absPath = nativeToUnixPath(path)
-    let watchRoot = watch.rootdir.toLowerAscii
+    let watchRoot = watch.rootDir.toLowerAscii
 
     if not absPath.isRelativeTo(watchRoot):
       debug "fsEventCallback:event:skipping ", absPath = absPath, watchRoot = watchRoot
@@ -92,7 +92,7 @@ proc processEvents(events: seq[FileEvent]) =
       if not ev.moveValid:
         ev.eventFlags.excl ItemRenamed
         let watch = dmon.watches[ev.watchId.uint32 - 1]
-        let absPath = watch.rootdir / ev.filepath
+        let absPath = watch.rootDir / ev.filepath
 
         if not fileExists(absPath):
           ev.eventFlags.incl ItemRemoved
@@ -111,25 +111,25 @@ proc processEvents(events: seq[FileEvent]) =
 
     if ev.eventFlags.contains(ItemCreated):
       watch.watchCb(
-        ev.watchId, Create, watch.rootdirUnmod, ev.filepath, "", watch.userData
+        ev.watchId, Create, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
 
     if ev.eventFlags.contains(ItemModified):
       watch.watchCb(
-        ev.watchId, Modify, watch.rootdirUnmod, ev.filepath, "", watch.userData
+        ev.watchId, Modify, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
     elif ev.eventFlags.contains(ItemRenamed):
       for j in (i + 1) ..< dmon.events.len:
         let checkEv = addr dmon.events[j]
         if checkEv.eventFlags.contains(ItemRenamed):
           watch.watchCb(
-            checkEv.watchId, Move, watch.rootdirUnmod, checkEv.filepath, ev.filepath,
+            checkEv.watchId, Move, watch.rootDirUnmod, checkEv.filepath, ev.filepath,
             watch.userData,
           )
           break
     elif ev.eventFlags.contains(ItemRemoved):
       watch.watchCb(
-        ev.watchId, Delete, watch.rootdirUnmod, ev.filepath, "", watch.userData
+        ev.watchId, Delete, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
 
 proc monitorThread() {.thread.} =
@@ -180,17 +180,17 @@ proc unwatchState(watch: WatchState) =
 
 proc watch*(
     dmon: var DmonState,
-    rootdir: string,
+    rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchId =
   # Create FSEvents stream
-  let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
+  let watch = dmon.watchInit(rootDir, watchCb, flags, userData)
 
   withLock dmon.threadLock:
     let cfPath = CFStringCreateWithCString(
-      nil.CFAllocatorRef, watch.rootdirUnmod.cstring, kCFStringEncodingUTF8
+      nil.CFAllocatorRef, watch.rootDirUnmod.cstring, kCFStringEncodingUTF8
     )
     defer:
       CFRelease(cfPath.pointer)
@@ -238,12 +238,12 @@ when isMainModule:
   let cb: WatchCallback = proc(
       watchId: WatchId,
       action: DmonAction,
-      rootdir, filepath, oldfilepath: string,
+      rootDir, filepath, oldfilepath: string,
       userData: pointer,
   ) {.gcsafe.} =
     echo "callback: ", "watchId: ", watchId.repr
     echo "callback: ", "action: ", action.repr
-    echo "callback: ", "rootdir: ", rootdir.repr
+    echo "callback: ", "rootDir: ", rootDir.repr
     echo "callback: ", "file: ", filepath.repr
     echo "callback: ", "old: ", oldfilepath.repr
 

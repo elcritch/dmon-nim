@@ -34,7 +34,7 @@ type
   WatchCallback* = proc(
     watchId: WatchId,
     action: DmonAction,
-    rootdir, filepath, oldfilepath: string,
+    rootDir, filepath, oldfilepath: string,
     userData: pointer,
   )
 
@@ -55,15 +55,13 @@ type
     watchFlags*: set[WatchFlags]
     watchCb*: WatchCallback
     userData*: pointer
-    rootdir*: string
+    rootDir*: string
     when defined(macosx):
       fsEvStreamRef*: FSEventStreamRef
       init*: bool
-      rootdirUnmod*: string
+      rootDirUnmod*: string
     elif defined(linux):
       fd*: FileHandle
-      userData*: pointer
-      rootDir*: string
       subdirs*: seq[WatchSubdir]
       wds*: seq[cint]
 
@@ -87,15 +85,15 @@ iterator watchStates*(dmon: DmonState): WatchState =
 
 proc watchInit*(
     dmon: var DmonState,
-    rootdir: string,
+    rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchState =
   assert(dmon.initialized)
-  assert(not rootdir.isEmptyOrWhitespace)
+  assert(not rootDir.isEmptyOrWhitespace)
   assert(watchCb != nil)
-  let rootdir = rootdir.absolutePath().expandFilename()
+  let rootDir = rootDir.absolutePath().expandFilename()
 
   notice "watchDmon: starting"
   # dmon.modifyWatches.store(1)
@@ -122,28 +120,28 @@ proc watchInit*(
     watch.userData = userData
 
     # Validate directory
-    if not dirExists(rootdir):
-      warn "Could not open/read directory: ", rootdir
+    if not dirExists(rootDir):
+      warn "Could not open/read directory: ", rootDir
       dec dmon.numWatches
       # return WatchId(0)
-      raise newException(KeyError, "could not open/read root directory: " & rootdir)
+      raise newException(KeyError, "could not open/read root directory: " & rootDir)
 
     # Handle symlinks
-    var finalPath = rootdir
+    var finalPath = rootDir
     if flags.contains(WatchFlags.FollowSymlinks):
       try:
-        finalPath = expandSymlink(rootdir)
+        finalPath = expandSymlink(rootDir)
       except OSError:
-        warn "Failed to resolve symlink: ", rootdir
+        warn "Failed to resolve symlink: ", rootDir
         dec dmon.numWatches
         raise newException(ValueError, "Exceeding maximum number of watches")
 
     # Setup watch path
-    watch.rootdir = finalPath.normalizedPath
-    if not watch.rootdir.endsWith("/"):
-      watch.rootdir.add "/"
+    watch.rootDir = finalPath.normalizedPath
+    if not watch.rootDir.endsWith("/"):
+      watch.rootDir.add "/"
 
-    watch.rootdir = watch.rootdir.toLowerAscii
+    watch.rootDir = watch.rootDir.toLowerAscii
 
     result = watch
  
