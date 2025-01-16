@@ -37,6 +37,7 @@ typedef enum dmon_action_t {
                                           const char* oldfilepath, void* user),
                          uint32_t flags, void* user_data);
               void dmon_unwatch(dmon_watch_id id);
+
 # 269 "tests/original/dmon.modified.h"
               bool _dmon_isrange(char ch, char from, char to)
 {
