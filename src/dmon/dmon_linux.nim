@@ -207,6 +207,7 @@ proc processWatches() =
         while true:
           # if not dmonInst.quit:
           let n = read(watch.fd, addr events, MaxWatches)
+          trace "processWatches: inotify read", watchFd = watch.fd, n = n
           if n <= 0:
             trace "processWatches: inotify events: ", watchFd = watch.fd
             break
