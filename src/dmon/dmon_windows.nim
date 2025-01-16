@@ -1,5 +1,6 @@
-import std/winlean
 import std/[strutils, locks]
+
+import winim/lean
 
 type
   DmonWatchId* = distinct uint32
@@ -87,7 +88,7 @@ proc processEvents() =
       for j in (i + 1) ..< dmon.events.len:
         let checkEv = dmon.events[j].addr
         if checkEv.action == FILE_ACTION_MODIFIED and
-           strcmp(ev.filepath[0].unsafeAddr, checkEv.filepath[0].unsafeAddr) == 0:
+            ev.filepath == checkEv.filePath:
           checkEv.skip = true
 
   # Process events
