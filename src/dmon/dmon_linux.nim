@@ -189,7 +189,7 @@ proc processWatches() =
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
     return
 
-  let starttm = getMonoTime()
+  var starttm = getMonoTime()
   withLock(dmonInst.threadLock):
     trace "monitor: select readfds "
     for watch in dmonInst.watchStates():
@@ -230,6 +230,7 @@ proc processWatches() =
             trace "processWatches: finished inotify events", watchFd = watch.fd
             processEvents(move dmonInst.events)
             assert dmonInst.events.len() == 0
+            starttm = ts
 
     # Check elapsed time and process events if needed
     # let currentTime = getTime()
