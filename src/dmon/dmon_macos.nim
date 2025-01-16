@@ -27,7 +27,7 @@ proc fsEventCallback(
   let watchId = cast[WatchId](userData)
   assert(uint32(watchId) > 0)
 
-  notice "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int, streamRef = streamRef.pointer.repr
+  debug "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int, streamRef = streamRef.pointer.repr
   let eventFlags = cast[ptr UncheckedArray[set[FSEventStreamEventFlag]]](eventFlags)
   let eventIds = cast[ptr UncheckedArray[FSEventStreamEventId]](eventFlags)
 
@@ -37,7 +37,7 @@ proc fsEventCallback(
 
   for i in 0 ..< numEvents:
     let path = $paths[i]
-    notice "fsEventCallback:event: ",
+    debug "fsEventCallback:event: ",
       i = i,
       eventIds = eventIds[i],
       eventFlags = eventFlags[i],
@@ -50,7 +50,7 @@ proc fsEventCallback(
     let watchRoot = watch.rootdir.toLowerAscii
 
     if not absPath.isRelativeTo(watchRoot):
-      notice "fsEventCallback:event:skipping ", absPath = absPath, watchRoot = watchRoot
+      debug "fsEventCallback:event:skipping ", absPath = absPath, watchRoot = watchRoot
       continue
 
     ev.filepath = absPath.relativePath(watchRoot)
@@ -58,7 +58,7 @@ proc fsEventCallback(
     ev.eventId = eventIds[i]
     ev.watchId = watchId
 
-    notice "fsEventCallback:event:adding: ", ev = ev.repr
+    debug "fsEventCallback:event:adding: ", ev = ev.repr
     dmon.events.add(ev)
 
 proc processEvents(events: seq[FsEvent]) =

@@ -87,7 +87,7 @@ proc watchInit*(
   # dmon.modifyWatches.store(1)
 
   withLock dmon.threadLock:
-    notice "adding watches"
+    notice "setting up watches"
     assert(dmon.numWatches < 64)
     if dmon.numWatches >= 64:
       raise newException(ValueError, "Exceeding maximum number of watches")
