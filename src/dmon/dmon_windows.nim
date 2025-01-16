@@ -6,7 +6,7 @@ import dmontypes
 
 proc refreshWatch(watch: var WatchState): bool =
   let recursive = watch.watchFlags.contains(Recursive)
-  ReadDirectoryChangesW(
+  let res = ReadDirectoryChangesW(
     watch.dirHandle,
     watch.buffer[0].addr,
     DWORD(watch.buffer.len),
@@ -15,9 +15,10 @@ proc refreshWatch(watch: var WatchState): bool =
     nil,
     watch.overlapped.addr,
     nil
-  ) != 0
+  )
+  assert res != 0
 
-proc unwatchInternal(watch: ptr DmonWatchState) =
+proc unwatchInternal(watch: WatchState) =
   CancelIo(watch.dirHandle)
   CloseHandle(watch.overlapped.hEvent)
   CloseHandle(watch.dirHandle)
@@ -95,7 +96,7 @@ proc processEvents() =
 proc dmonThread(arg: pointer): DWORD {.stdcall.} =
   var 
     waitHandles: array[64, HANDLE]
-    watchStates: array[64, ptr DmonWatchState]
+    watchStates: array[64, WatchState]
     startTime: SYSTEMTIME
     msecsElapsed: uint64
 
@@ -242,7 +243,7 @@ proc dmonWatch*(rootdir: string, watchCb: DmonWatchCallback,
     id = uint32(index + 1)
 
   if dmon.watches[index].isNil:
-    dmon.watches[index] = cast[ptr DmonWatchState](alloc0(sizeof(DmonWatchState)))
+    dmon.watches[index] = cast[WatchState](alloc0(sizeof(DmonWatchState)))
     if dmon.watches[index].isNil:
       release(dmon.mutex)
       discard interlockedExchange(dmon.modifyWatches.addr, 0)
