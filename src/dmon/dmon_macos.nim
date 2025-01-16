@@ -159,7 +159,7 @@ proc monitorThread*() {.thread.} =
     CFRunLoopStop(dmonInst.cfLoopRef)
     dmonInst.cfLoopRef = nil.CFRunLoopRef
 
-proc unwatchState(watch: var WatchState) =
+proc unwatchState*(watch: var WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
     FSEventStreamStop(watch.fsEvStreamRef)
     FSEventStreamInvalidate(watch.fsEvStreamRef)
@@ -174,7 +174,7 @@ proc watch*(
     userData: pointer,
 ): WatchId =
   ## Create Dmon watch using FSEvents stream
-  let watch = dmonInst.watchInit(rootDir, watchCb, flags, userData)
+  let watch = watchInit(rootDir, watchCb, flags, userData)
 
   withLock dmonInst.threadLock:
     let cfPath = CFStringCreateWithCString(

@@ -226,5 +226,4 @@ template deinitDmon*() =
     if dmonInst.watches[i] != nil:
       unwatchState(dmonInst.watches[i])
 
-  dmonInst.events.setLen(0)
-  dmon = DmonState()
+  dmonInst = DmonState()
