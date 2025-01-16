@@ -1,8 +1,9 @@
 import std/posix
 import std/[os, strutils, paths]
+import std/monotimes
+import std/times
 import std/locks
 import std/inotify
-# import std/times
 from std/times import getTime, Time
 
 import logging
@@ -183,11 +184,12 @@ proc processWatches() =
 
   var timeout: Timeval
   timeout.tv_sec = posix.Time(0)
-  timeout.tv_usec = Suseconds(500_000) # 100ms timeout
+  timeout.tv_usec = Suseconds(100_000) # 100ms timeout
 
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
     return
 
+  let starttm = getMonoTime()
   withLock(dmonInst.threadLock):
     trace "monitor: select readfds "
     for watch in dmonInst.watchStates():
@@ -222,9 +224,12 @@ proc processWatches() =
                 skip: false
               )
               dmonInst.events.add(event)
-          trace "processWatches: finished inotify events", watchFd = watch.fd
-          processEvents(move dmonInst.events)
-          assert dmonInst.events.len() == 0
+
+          let ts = getMonoTime()
+          if (ts - starttm).inMilliseconds > 100:
+            trace "processWatches: finished inotify events", watchFd = watch.fd
+            processEvents(move dmonInst.events)
+            assert dmonInst.events.len() == 0
 
     # Check elapsed time and process events if needed
     # let currentTime = getTime()
