@@ -45,7 +45,7 @@ proc findSubdir(watch: WatchState, wd: cint): string =
 
 # Process inotify events
 proc processEvents(events: seq[FileEvent]) =
-  trace "processing processEvents ", eventsLen = dmon.events.len()
+  trace "processing processEvents ", eventsLen = dmonInst.events.len()
   for i, ev in events:
     var ev = events[i]
     if ev.skip:
@@ -121,7 +121,7 @@ proc processEvents(events: seq[FileEvent]) =
       trace "skipping event: ", i = i, ev = ev.repr
       continue
 
-    let watch = dmon.watches[uint32(ev.watchId) - 1]
+    let watch = dmonInst.watches[uint32(ev.watchId) - 1]
     if watch == nil or watch.watchCb == nil:
       continue
 
@@ -146,8 +146,8 @@ proc processEvents(events: seq[FileEvent]) =
       watch.watchCb(ev.watchId, Modify, watch.rootDir, ev.filePath, "", watch.userData)
 
     elif (ev.mask and IN_MOVED_FROM) != 0:
-      for j in (i+1)..<dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for j in (i+1)..<dmonInst.events.len:
+        let checkEv = addr dmonInst.events[j]
         if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
           watch.watchCb(checkEv.watchId, Move, watch.rootDir,
                        checkEv.filePath, ev.filePath, watch.userData)
@@ -156,7 +156,7 @@ proc processEvents(events: seq[FileEvent]) =
     elif (ev.mask and IN_DELETE) != 0:
       watch.watchCb(ev.watchId, Delete, watch.rootDir, ev.filePath, "", watch.userData)
 
-  dmon.events.setLen(0)
+  dmonInst.events.setLen(0)
 
 const BufferSize = sizeof(FileEvent) * 1024
 
@@ -166,8 +166,8 @@ proc processWatches() =
   FD_ZERO(readfds)
   
   # Add all watch file descriptors to the set
-  for i in 0..<dmon.numWatches:
-    let watch = dmon.watches[i]
+  for i in 0..<dmonInst.numWatches:
+    let watch = dmonInst.watches[i]
     if watch != nil:
       FD_SET(watch.fd.cint, readfds)
 
@@ -177,7 +177,7 @@ proc processWatches() =
 
   debug "monitor: "
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
-    for watch in dmon.watchStates():
+    for watch in dmonInst.watchStates():
       info "initialize watch ", watch = watch.repr
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
@@ -200,7 +200,7 @@ proc processWatches() =
           if subdir.len > 0:
             let filepath = subdir & $cast[cstring](addr buffer[cnt])
             
-            # if dmon.events.len == 0:
+            # if dmonInst.events.len == 0:
             #   microSecsElapsed = 0
               
             var event = FileEvent(
@@ -210,7 +210,7 @@ proc processWatches() =
               watchId: watch.id,
               skip: false
             )
-            dmon.events.add(event)
+            dmonInst.events.add(event)
 
   # Check elapsed time and process events if needed
   # let currentTime = getTime()
@@ -218,9 +218,9 @@ proc processWatches() =
   # startTime = currentTime
   # microSecsElapsed += dt
   
-  # if microSecsElapsed > 100_000 and dmon.events.len > 0:
-  processEvents(move dmon.events)
-  assert dmon.events.len() == 0
+  # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
+  processEvents(move dmonInst.events)
+  assert dmonInst.events.len() == 0
   # microSecsElapsed = 0
 
 proc monitorThread*() {.thread.} =
@@ -241,9 +241,9 @@ proc watch*(
     userData: pointer = nil,
 ): WatchId =
   ## Create Dmon watch using inotify events
-  let watch = dmon.watchInit(rootdir, watchCb, flags, userData)
+  let watch = dmonInst.watchInit(rootdir, watchCb, flags, userData)
 
-  withLock dmon.threadLock:
+  withLock dmonInst.threadLock:
     # Initialize inotify
     watch.fd = inotify_init().FileHandle
     if watch.fd.cint < 0:
