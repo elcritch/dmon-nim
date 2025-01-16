@@ -175,8 +175,9 @@ proc processWatches() =
   timeout.tv_sec = posix.Time(0)
   timeout.tv_usec = Suseconds(100_000) # 100ms timeout
 
-  debug "monitor: "
+  debug "monitor: ", watches = dmonInst.numWatches.len()
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+    trace "monitor: select readfds "
     for watch in dmonInst.watchStates():
       info "initialize watch ", watch = watch.repr
       assert watch != nil

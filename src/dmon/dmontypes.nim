@@ -82,9 +82,9 @@ type
 var
   dmonInst*: DmonState
 
-iterator watchStates*(dmonInst: DmonState): WatchState =
-  for i in 0 ..< dmonInst.numWatches:
-    yield dmonInst.watches[i]
+iterator watchStates*(dm: DmonState): WatchState =
+  for i in 0 ..< dm.numWatches:
+    yield dm.watches[i]
 
 proc watchInit*(
     rootDir: string,
@@ -159,7 +159,7 @@ template threadExec*() =
   while not dmonInst.quit:
     if dmonInst.numWatches == 0:
       os.sleep(100)
-      # debug "monitorThread: no numWatches: "
+      debug "monitorThread: no numWatches: "
       continue
 
     withLock(dmonInst.threadLock):
