@@ -1,4 +1,4 @@
 
 when defined(macosx):
-  import dmon/macos
-  export macos
+  import dmon/dmon_macos
+  export dmon_macos
