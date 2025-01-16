@@ -11,26 +11,6 @@ type
   WatchSubdir = object
     rootDir: string
 
-  WatchState = ref object
-    id: WatchId
-    watchFlags: set[WatchFlags]
-    watchCb: WatchCallback
-
-    fd: FileHandle
-    userData: pointer
-    rootDir: string
-    subdirs: seq[WatchSubdir]
-    wds: seq[cint]
-
-  DmonState = object
-    watches: array[64, WatchState]
-    freeList: array[64, int]
-    events: seq[InotifyEvent]
-    numWatches: int
-    thread: Thread[void]
-    mutex: Lock
-    quit: bool
-
 var 
   dmonInitialized = false
   dmon: DmonState

@@ -11,6 +11,11 @@ when defined(macosx):
   import macosutils/cfcore
   import macosutils/fsstream
 
+when defined(linux):
+  type
+    WatchSubdir = object
+      rootDir: string
+
 type
   WatchId* = distinct uint32
 
