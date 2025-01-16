@@ -15,19 +15,6 @@ import macosutils/fsstream
 
 import dmontypes
 
-type
-  MacOOFsEvent* = ref object of DmonFsEvent
-    eventId: FSEventStreamEventId
-    eventFlags: set[FSEventStreamEventFlag]
-    moveValid: bool
-
-  MacOSWatchState* = ref object of DmonWatchState
-    fsEvStreamRef: FSEventStreamRef
-
-  MacOSState* = object
-    cfLoopRef: CFRunLoopRef
-    cfAllocRef: CFAllocatorRef
-
 var
   dmonInitialized: bool
   dmon: DmonState

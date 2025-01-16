@@ -7,6 +7,10 @@ import std/[os, paths]
 
 import logging
 
+when defined(macosx):
+  import macosutils/cfcore
+  import macosutils/fsstream
+
 type
   DmonWatchId* = distinct uint32
 
@@ -33,6 +37,10 @@ type
     filepath*: string
     watchId*: DmonWatchId
     skip*: bool
+    when defined(macosx):
+      eventId: FSEventStreamEventId
+      eventFlags: set[FSEventStreamEventFlag]
+      moveValid: bool
 
   DmonWatchState* = ref object of RootObj
     id*: DmonWatchId
@@ -42,17 +50,23 @@ type
     rootdir*: string
     rootdirUnmod*: string
     init*: bool
+    when defined(macosx):
+      fsEvStreamRef: FSEventStreamRef
 
-  DmonState*[T] = object
+  DmonState*[T, FSEvent] = object
     watches*: array[64, DmonWatchState]
     freeList*: array[64, int]
-    events*: seq[DmonFsEvent]
+    events*: seq[FSEvent]
     numWatches*: int
     threadHandle*: Thread[void]
     threadLock*: Lock
     threadSem*: Cond
     quit*: bool
     osState*: T
+    when defined(macosx):
+      fsEvStreamRef: FSEventStreamRef
+      cfLoopRef: CFRunLoopRef
+      cfAllocRef: CFAllocatorRef
 
 proc watchDmon*(
     dmon: var DmonState,
