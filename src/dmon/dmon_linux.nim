@@ -159,79 +159,80 @@ proc processEvents(events: seq[FileEvent]) =
   dmon.events.setLen(0)
 
 proc monitorThread() {.thread.} =
-  const BufferSize = sizeof(FileEvent) * 1024
-  var buffer: array[1024, InotifyEvent]
-  
-  var startTime: times.Time
-  # var microSecsElapsed: int64 = 0
-  startTime = getTime()
+  {.cast(gcsafe).}:
+    const BufferSize = sizeof(FileEvent) * 1024
+    var buffer: array[1024, InotifyEvent]
+    
+    var startTime: times.Time
+    # var microSecsElapsed: int64 = 0
+    startTime = getTime()
 
-  while not dmon.quit:
-    if dmon.numWatches == 0:
-      os.sleep(100)
-      # debug "monitorThread: no numWatches: "
-      continue
+    while not dmon.quit:
+      if dmon.numWatches == 0:
+        os.sleep(100)
+        # debug "monitorThread: no numWatches: "
+        continue
 
-    withLock(dmon.threadLock):
-      var readfds: TFdSet
-      FD_ZERO(readfds)
-      
-      # Add all watch file descriptors to the set
-      for i in 0..<dmon.numWatches:
-        let watch = dmon.watches[i]
-        if watch != nil:
-          FD_SET(watch.fd.cint, readfds)
-
-      var timeout: Timeval
-      timeout.tv_sec = posix.Time(0)
-      timeout.tv_usec = Suseconds(100_000) # 100ms timeout
-
-      if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+      withLock(dmon.threadLock):
+        var readfds: TFdSet
+        FD_ZERO(readfds)
+        
+        # Add all watch file descriptors to the set
         for i in 0..<dmon.numWatches:
           let watch = dmon.watches[i]
-          assert watch != nil
-          if FD_ISSET(watch.fd.cint, readfds) != 0:
-            var idx = 0
-            # read events
-            let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
-            
-            if bytesRead <= 0:
-              continue
+          if watch != nil:
+            FD_SET(watch.fd.cint, readfds)
 
-            let cnt = bytesRead div sizeof(InotifyEvent)
-            for idx in 0 ..< cnt:
-              let item = buffer[cnt]
-              let iev = item
-              # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
-              # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
-              let subdir = watch.findSubdir(iev.wd)
+        var timeout: Timeval
+        timeout.tv_sec = posix.Time(0)
+        timeout.tv_usec = Suseconds(100_000) # 100ms timeout
+
+        if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
+          for i in 0..<dmon.numWatches:
+            let watch = dmon.watches[i]
+            assert watch != nil
+            if FD_ISSET(watch.fd.cint, readfds) != 0:
+              var idx = 0
+              # read events
+              let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
               
-              if subdir.len > 0:
-                let filepath = subdir & $cast[cstring](addr buffer[cnt])
+              if bytesRead <= 0:
+                continue
+
+              let cnt = bytesRead div sizeof(InotifyEvent)
+              for idx in 0 ..< cnt:
+                let item = buffer[cnt]
+                let iev = item
+                # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
+                # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
+                let subdir = watch.findSubdir(iev.wd)
                 
-                # if dmon.events.len == 0:
-                #   microSecsElapsed = 0
+                if subdir.len > 0:
+                  let filepath = subdir & $cast[cstring](addr buffer[cnt])
                   
-                var event = FileEvent(
-                  filePath: filepath,
-                  mask: iev.mask,
-                  cookie: iev.cookie,
-                  watchId: watch.id,
-                  skip: false
-                )
-                dmon.events.add(event)
+                  # if dmon.events.len == 0:
+                  #   microSecsElapsed = 0
+                    
+                  var event = FileEvent(
+                    filePath: filepath,
+                    mask: iev.mask,
+                    cookie: iev.cookie,
+                    watchId: watch.id,
+                    skip: false
+                  )
+                  dmon.events.add(event)
 
-      # Check elapsed time and process events if needed
-      # let currentTime = getTime()
-      # let dt = (currentTime - startTime).inMicroseconds
-      # startTime = currentTime
-      # microSecsElapsed += dt
-      
-      # if microSecsElapsed > 100_000 and dmon.events.len > 0:
-      processEvents(move dmon.events)
-      # microSecsElapsed = 0
+        # Check elapsed time and process events if needed
+        # let currentTime = getTime()
+        # let dt = (currentTime - startTime).inMicroseconds
+        # startTime = currentTime
+        # microSecsElapsed += dt
+        
+        # if microSecsElapsed > 100_000 and dmon.events.len > 0:
+        processEvents(move dmon.events)
+        # microSecsElapsed = 0
 
-    sleep(10) # Sleep for 10ms
+      sleep(10) # Sleep for 10ms
 
 
 proc unwatchState(watch: var WatchState) =
