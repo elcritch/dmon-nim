@@ -243,7 +243,7 @@ proc dmonWatch*(rootdir: string, watchCb: DmonWatchCallback,
     id = uint32(index + 1)
 
   if dmon.watches[index].isNil:
-    dmon.watches[index] = cast[WatchState](alloc0(sizeof(DmonWatchState)))
+    dmon.watches[index] = WatchState()
     if dmon.watches[index].isNil:
       release(dmon.mutex)
       discard interlockedExchange(dmon.modifyWatches.addr, 0)
