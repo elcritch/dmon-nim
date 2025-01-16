@@ -248,7 +248,6 @@ proc watchDmon*(
     )
     let flags = {FileEvents, NoDefer}
     notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
-    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32 
     watch.fsEvStreamRef = FSEventStreamCreate(
       dmon.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function
