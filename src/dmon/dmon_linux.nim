@@ -167,7 +167,7 @@ proc processEvents(events: seq[FileEvent]) =
 const MaxWatches = 8192
 
 proc processWatches() =
-  debug "monitor: processWatches "
+  trace "monitor: processWatches "
 
   # setup watches / readfds
   # var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
