@@ -1,3 +1,4 @@
+import std/os
 import dmon
 
 proc main() =

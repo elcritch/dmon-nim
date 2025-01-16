@@ -150,8 +150,7 @@ proc watchInit*(
 var
   dmon*: DmonState
 
-template unwatch*(id: WatchId) =
-  mixin unwatchState
+proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: WatchState) {.nimcall.}) =
   assert(dmon.initialized)
   assert(uint32(id) > 0)
 
@@ -163,7 +162,7 @@ template unwatch*(id: WatchId) =
   if dmon.watches[index] != nil:
     notice "unwatch location", id = id.repr
     withLock dmon.threadLock:
-      unwatchState(dmon.watches[index])
+      unwatchStateProc(dmon.watches[index])
       dmon.watches[index] = nil
 
       dec dmon.numWatches
@@ -171,6 +170,10 @@ template unwatch*(id: WatchId) =
       dmon.freeList[numFreeList - 1] = index
 
   notice "unwatch done"
+
+template unwatch*(id: WatchId) =
+  mixin unwatchState
+  unwatchImpl(id, unwatchState)
 
 template initDmon*() =
   mixin initDmonImpl
@@ -183,11 +186,8 @@ template startDmonThread*() =
   mixin monitorThread
   createThread(dmon.threadHandle, monitorThread)
 
-  notice "start dmon"
-
   withLock(dmon.threadLock):
     wait(dmon.threadSem, dmon.threadLock)
-  notice "dmon started"
 
   for i in 0 ..< 64:
     dmon.freeList[i] = 64 - i - 1

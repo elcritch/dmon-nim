@@ -158,7 +158,7 @@ proc processEvents(events: seq[FileEvent]) =
 
   dmon.events.setLen(0)
 
-proc monitorThread() {.thread.} =
+proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     const BufferSize = sizeof(FileEvent) * 1024
     var buffer: array[1024, InotifyEvent]
@@ -276,22 +276,3 @@ proc watch*(
 
 proc initDmonImpl*() =
   discard
-
-proc unwatchState(watch: WatchState) =
-  if watch != nil:
-    discard close(watch.fd)
-
-proc unwatchState*(id: WatchId) =
-
-  let index = int(id) - 1
-  assert index < 64
-  assert dmon.watches[index] != nil
-  assert dmon.numWatches > 0
-
-  if dmon.watches[index] != nil:
-    withLock dmon.threadLock:
-      dmon.watches[index] = nil
-
-      dec dmon.numWatches
-      let numFreeList = 64 - dmon.numWatches
-      dmon.freeList[numFreeList - 1] = index
