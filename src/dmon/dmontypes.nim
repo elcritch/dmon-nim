@@ -171,7 +171,9 @@ template startDmonThread*() =
   createThread(dmon.threadHandle, monitorThread)
 
   notice "start dmon"
-  wait(dmon.threadSem, dmon.threadLock)
+
+  withLock(dmon.threadLock):
+    wait(dmon.threadSem, dmon.threadLock)
   notice "dmon started"
 
   for i in 0 ..< 64:
