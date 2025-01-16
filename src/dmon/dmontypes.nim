@@ -79,41 +79,41 @@ type
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
-iterator watchStates*(dmon: DmonState): WatchState =
-  for i in 0 ..< dmon.numWatches:
-    yield dmon.watches[i]
+iterator watchStates*(dmonInst: DmonState): WatchState =
+  for i in 0 ..< dmonInst.numWatches:
+    yield dmonInst.watches[i]
 
 proc watchInit*(
-    dmon: var DmonState,
+    dmonInst: var DmonState,
     rootDir: string,
     watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchState =
-  assert(dmon.initialized)
+  assert(dmonInst.initialized)
   assert(not rootDir.isEmptyOrWhitespace)
   assert(watchCb != nil)
   let rootDir = rootDir.absolutePath().expandFilename()
 
   notice "watchDmon: starting"
-  # dmon.modifyWatches.store(1)
+  # dmonInst.modifyWatches.store(1)
 
-  withLock dmon.threadLock:
+  withLock dmonInst.threadLock:
     notice "setting up watches"
-    assert(dmon.numWatches < 64)
-    if dmon.numWatches >= 64:
+    assert(dmonInst.numWatches < 64)
+    if dmonInst.numWatches >= 64:
       raise newException(ValueError, "Exceeding maximum number of watches")
 
-    let numFreeList = 64 - dmon.numWatches
-    let index = dmon.freeList[numFreeList - 1]
+    let numFreeList = 64 - dmonInst.numWatches
+    let index = dmonInst.freeList[numFreeList - 1]
     let id = uint32(index + 1)
 
-    if dmon.watches[index] == nil:
-      dmon.watches[index] = WatchState()
+    if dmonInst.watches[index] == nil:
+      dmonInst.watches[index] = WatchState()
 
-    inc dmon.numWatches
+    inc dmonInst.numWatches
 
-    let watch: WatchState = dmon.watches[id - 1]
+    let watch: WatchState = dmonInst.watches[id - 1]
     watch.id = WatchId(id)
     watch.watchFlags = flags
     watch.watchCb = watchCb
@@ -122,7 +122,7 @@ proc watchInit*(
     # Validate directory
     if not dirExists(rootDir):
       warn "Could not open/read directory: ", rootDir
-      dec dmon.numWatches
+      dec dmonInst.numWatches
       # return WatchId(0)
       raise newException(KeyError, "could not open/read root directory: " & rootDir)
 
@@ -133,7 +133,7 @@ proc watchInit*(
         finalPath = expandSymlink(rootDir)
       except OSError:
         warn "Failed to resolve symlink: ", rootDir
-        dec dmon.numWatches
+        dec dmonInst.numWatches
         raise newException(ValueError, "Exceeding maximum number of watches")
 
     # Setup watch path
@@ -148,46 +148,46 @@ proc watchInit*(
   notice "watchDmon: done"
 
 var
-  dmon*: DmonState
+  dmonInst*: DmonState
 
 template threadExec*() =
   notice "starting thread"
-  withLock(dmon.threadLock):
+  withLock(dmonInst.threadLock):
     notice "signal lock"
-    signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
+    signal(dmonInst.threadSem) # dispatch_semaphore_signal(dmonInst.threadSem)
 
   notice "started thread loop"
-  while not dmon.quit:
-    if dmon.numWatches == 0:
+  while not dmonInst.quit:
+    if dmonInst.numWatches == 0:
       os.sleep(100)
       # debug "monitorThread: no numWatches: "
       continue
 
-    withLock(dmon.threadLock):
-      # debug "processing watches ", numWatches = dmon.numWatches
+    withLock(dmonInst.threadLock):
+      # debug "processing watches ", numWatches = dmonInst.numWatches
       processWatches()
 
     os.sleep(10)
 
 
 proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: var WatchState) {.nimcall.}) =
-  assert(dmon.initialized)
+  assert(dmonInst.initialized)
   assert(uint32(id) > 0)
 
   let index = int(uint32(id) - 1)
   assert(index < 64)
-  assert(dmon.watches[index] != nil)
-  assert(dmon.numWatches > 0)
+  assert(dmonInst.watches[index] != nil)
+  assert(dmonInst.numWatches > 0)
 
-  if dmon.watches[index] != nil:
+  if dmonInst.watches[index] != nil:
     notice "unwatch location", id = id.repr
-    withLock dmon.threadLock:
-      unwatchStateProc(dmon.watches[index])
-      dmon.watches[index] = nil
+    withLock dmonInst.threadLock:
+      unwatchStateProc(dmonInst.watches[index])
+      dmonInst.watches[index] = nil
 
-      dec dmon.numWatches
-      let numFreeList = 64 - dmon.numWatches
-      dmon.freeList[numFreeList - 1] = index
+      dec dmonInst.numWatches
+      let numFreeList = 64 - dmonInst.numWatches
+      dmonInst.freeList[numFreeList - 1] = index
 
   notice "unwatch done"
 
@@ -197,35 +197,35 @@ template unwatch*(id: WatchId) =
 
 template initDmon*() =
   mixin initDmonImpl
-  assert(not dmon.initialized)
-  initLock(dmon.threadLock)
-  initCond(dmon.threadSem)
+  assert(not dmonInst.initialized)
+  initLock(dmonInst.threadLock)
+  initCond(dmonInst.threadSem)
   initDmonImpl()
 
 template startDmonThread*() =
   mixin monitorThread
-  createThread(dmon.threadHandle, monitorThread)
+  createThread(dmonInst.threadHandle, monitorThread)
 
-  withLock(dmon.threadLock):
-    wait(dmon.threadSem, dmon.threadLock)
+  withLock(dmonInst.threadLock):
+    wait(dmonInst.threadSem, dmonInst.threadLock)
 
   for i in 0 ..< 64:
-    dmon.freeList[i] = 64 - i - 1
+    dmonInst.freeList[i] = 64 - i - 1
   
-  dmon.initialized = true
+  dmonInst.initialized = true
 
 template deinitDmon*() =
   mixin unwatch
 
-  dmon.quit = true
-  joinThread(dmon.threadHandle)
+  dmonInst.quit = true
+  joinThread(dmonInst.threadHandle)
 
-  deinitCond(dmon.threadSem)
-  deinitLock(dmon.threadLock)
+  deinitCond(dmonInst.threadSem)
+  deinitLock(dmonInst.threadLock)
 
-  for i in 0 ..< dmon.numWatches:
-    if dmon.watches[i] != nil:
-      unwatchState(dmon.watches[i])
+  for i in 0 ..< dmonInst.numWatches:
+    if dmonInst.watches[i] != nil:
+      unwatchState(dmonInst.watches[i])
 
-  dmon.events.setLen(0)
+  dmonInst.events.setLen(0)
   dmon = DmonState()
