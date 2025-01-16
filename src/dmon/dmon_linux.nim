@@ -189,11 +189,8 @@ proc processWatches() =
       if FD_ISSET(watch.fd.cint, readfds) != 0:
         debug "inotify isset: ", watchId = watch.fd
 
-        let inotifyFd = inotify_init()  # create new inotify instance and get it's FileHandle
-        let wd = inotifyFd.inotify_add_watch("/tmp", IN_CREATE or IN_DELETE)  # Add new watch
-
         var events: array[MaxWatches, byte]  # event buffer
-        while (let n = read(inotifyFd, addr events, MaxWatches); n) > 0:  # blocks until any events have been read
+        while (let n = read(watch.fd, addr events, MaxWatches); n) > 0:  # blocks until any events have been read
           for e in inotify_events(addr events, n):
             let watchId = e[].wd
             let mask = e[].mask
