@@ -144,6 +144,11 @@ proc processWatches() =
       debug "initialized watch ", sres = sres.repr
       watch.init = true
 
+  let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
+  trace "CFRunLoopRunInMode result: ", res = res
+  processEvents(move dmon.events)
+  assert dmon.events.len() == 0
+
 proc monitorThread() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
@@ -162,10 +167,6 @@ proc monitorThread() {.thread.} =
       withLock(dmon.threadLock):
         # debug "processing watches ", numWatches = dmon.numWatches
         processWatches()
-        let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
-        trace "CFRunLoopRunInMode result: ", res = res
-        processEvents(move dmon.events)
-        assert dmon.events.len() == 0
 
       os.sleep(10)
 
