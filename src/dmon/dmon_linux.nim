@@ -48,9 +48,9 @@ proc findSubdir(watch: WatchState, wd: cint): string =
 
 # Process inotify events
 proc processEvents(events: seq[FileEvent]) =
-  trace "processing processEvents ", eventsLen = dmonInst.events.len()
+  trace "processing processEvents ", eventsLen = events.len()
   for i, ev in events:
-    var ev = events[i]
+    trace "processWatches: ev", ev = ev.repr
     if ev.skip:
       continue
 
@@ -183,26 +183,27 @@ proc processWatches() =
   timeout.tv_usec = Suseconds(500_000) # 100ms timeout
 
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
-    debug "monitor: select readfds "
+    trace "monitor: select readfds "
     for watch in dmonInst.watchStates():
-      info "process watch ", watch = watch.repr
+      trace "process watch ", watch = watch.repr
       assert watch != nil
       if FD_ISSET(watch.fd.cint, readfds) != 0:
-        debug "inotify isset: ", watchFd = watch.fd
+        trace "inotify isset: ", watchFd = watch.fd
 
         var events: array[MaxWatches, byte]  # event buffer
         while true:
           let n = read(watch.fd, addr events, MaxWatches)
           if n <= 0:
-            debug "processWatches: inotify events: ", watchFd = watch.fd
+            trace "processWatches: inotify events: ", watchFd = watch.fd
             break
           # blocks until any events have been read
           for iev in inotify_events(addr events, n):
             let watchId = iev[].wd
             let mask = iev[].mask
             let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
-            debug "processWatches: inotify events: ", watchId = watchId, mask = mask, name = name
             let subdir = watch.findSubdir(watchId)
+            trace "processWatches: inotify events: ",
+              watchId = watchId, mask = mask, name = name, subdir = subdir
 
             if subdir.len > 0:
               let filepath = subdir / name
@@ -218,7 +219,9 @@ proc processWatches() =
                 skip: false
               )
               dmonInst.events.add(event)
-          debug "processWatches: finished inotify events", watchFd = watch.fd
+          trace "processWatches: finished inotify events", watchFd = watch.fd
+          processEvents(move dmonInst.events)
+          assert dmonInst.events.len() == 0
 
   # Check elapsed time and process events if needed
   # let currentTime = getTime()
@@ -227,8 +230,6 @@ proc processWatches() =
   # microSecsElapsed += dt
   
   # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
-  processEvents(move dmonInst.events)
-  assert dmonInst.events.len() == 0
   # microSecsElapsed = 0
 
 proc monitorThread*() {.thread.} =
