@@ -149,7 +149,7 @@ proc processWatches() =
   processEvents(move dmon.events)
   assert dmon.events.len() == 0
 
-proc monitorThread() {.thread.} =
+proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
     dmon.cfLoopRef = CFRunLoopGetCurrent()
@@ -219,6 +219,7 @@ proc watch*(
     result = WatchId(watch.id)
     notice "watchDmon: done"
 
-proc initDmonImpl() =
+proc initDmonImpl*() =
   dmon.cfAllocRef = createBasicDefaultCFAllocator()
-  info "initDmonImpl: cfAllocRef: ", dmon.cfAllocRef.repr
+  info "initDmonImpl: ", cfAllocRef = dmon.cfAllocRef.repr
+
