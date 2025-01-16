@@ -13,9 +13,10 @@ type
 
   WatchState = ref object
     id: WatchId
-    fd: FileHandle
     watchFlags: set[WatchFlags]
     watchCb: WatchCallback
+
+    fd: FileHandle
     userData: pointer
     rootDir: string
     subdirs: seq[WatchSubdir]

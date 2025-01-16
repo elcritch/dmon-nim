@@ -51,10 +51,16 @@ type
     watchCb*: WatchCallback
     userData*: pointer
     rootdir*: string
-    rootdirUnmod*: string
-    init*: bool
     when defined(macosx):
       fsEvStreamRef*: FSEventStreamRef
+      init*: bool
+      rootdirUnmod*: string
+    elif defined(linux):
+      fd: FileHandle
+      userData: pointer
+      rootDir: string
+      subdirs: seq[WatchSubdir]
+      wds: seq[cint]
 
   DmonState* = object
     initialized*: bool
