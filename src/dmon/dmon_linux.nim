@@ -161,6 +161,8 @@ proc processEvents(events: seq[FileEvent]) =
 const BufferSize = sizeof(FileEvent) * 1024
 
 proc processWatches() =
+
+  # setup watches / readfds
   var buffer: array[1024, InotifyEvent]
   var readfds: TFdSet
   FD_ZERO(readfds)
@@ -175,7 +177,6 @@ proc processWatches() =
   timeout.tv_sec = posix.Time(0)
   timeout.tv_usec = Suseconds(100_000) # 100ms timeout
 
-  debug "monitor: ", watches = dmonInst.numWatches.len()
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) > 0:
     trace "monitor: select readfds "
     for watch in dmonInst.watchStates():

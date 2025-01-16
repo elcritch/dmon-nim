@@ -361,7 +361,6 @@ static void* _dmon_thread(void* arg)
             continue;
         }
 
-
         fd_set rfds;
         FD_ZERO(&rfds);
         {
