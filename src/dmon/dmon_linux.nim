@@ -194,9 +194,8 @@ proc processWatches() =
         while true:
           let n = read(watch.fd, addr events, MaxWatches)
           if n <= 0:
-            debug "processWatches: inotify events: ", watchId = watch.fd
+            debug "processWatches: inotify events: ", watchFd = watch.fd
             break
-          debug "processWatches: inotify events: ", watchFd = watch.fd
           # blocks until any events have been read
           for iev in inotify_events(addr events, n):
             let watchId = iev[].wd
@@ -219,6 +218,7 @@ proc processWatches() =
                 skip: false
               )
               dmonInst.events.add(event)
+          debug "processWatches: finished inotify events", watchFd = watch.fd
 
   # Check elapsed time and process events if needed
   # let currentTime = getTime()
