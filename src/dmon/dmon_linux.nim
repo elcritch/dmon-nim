@@ -8,8 +8,8 @@ from std/times import getTime, Time
 import logging
 import dmontypes
 
-const PATH_MAX = 4096
-let path_max_sys {.importc, extern: "PATH_MAX ", header: "#include <linux/limits.h>".}: cint
+const LINUX_PATH_MAX = 4096
+let path_max_sys {.importc, extern: "PATH_MAX", header: "#include <linux/limits.h>".}: cint
 
 proc watchRecursive(
     watch: WatchState, dirname: string, fd: FileHandle, mask: uint32, followLinks: bool
@@ -166,7 +166,7 @@ const BufferSize = sizeof(FileEvent) * 1024
 proc processWatches() =
 
   # setup watches / readfds
-  var buffer: array[1024, (InotifyEvent, array[PATH_MAX, char])]
+  var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
   var readfds: TFdSet
   FD_ZERO(readfds)
   
@@ -188,7 +188,7 @@ proc processWatches() =
       if FD_ISSET(watch.fd.cint, readfds) != 0:
         var idx = 0
         # read events
-        # ssize_t len = read(watch->fd, buff, ((sizeof(struct inotify_event) + PATH_MAX) * 1024));
+        # ssize_t len = read(watch->fd, buff, ((sizeof(struct inotify_event) + LINUX_PATH_MAX) * 1024));
         let bytesRead  = read(watch.fd.cint, addr buffer[0],
                               sizeof(InotifyEvent) * 1024)
         # let bytesRead = read(watch.fd.cint, addr buffer[0], BufferSize)
@@ -203,11 +203,13 @@ proc processWatches() =
 
         for idx in 0 ..< cnt:
           let item = buffer[cnt]
-          let iev = item
+          debug "item", item = buffer[cnt].repr
+          let iev = item[0]
           debug "item", item = item.repr
           # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
           # let iev: FileEvent = cast[ptr FileEvent](addr buffer[offset])
-          let subdir = watch.findSubdir(iev.wd)
+          let wd = iev.wd
+          let subdir = watch.findSubdir(wd)
           
           if subdir.len > 0:
             let filepath = subdir & $cast[cstring](addr buffer[cnt])
@@ -281,6 +283,6 @@ proc watch*(
     notice "watchDmon: done"
 
 proc initDmonImpl*() =
-  info "initDmonImpl: "
-  assert path_max_sys == PATH_MAX
+  info "initDmonImpl: ", path_max_sys = path_max_sys
+  assert path_max_sys == LINUX_PATH_MAX
   discard
