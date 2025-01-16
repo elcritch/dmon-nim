@@ -13,8 +13,8 @@ when defined(macosx):
 
 when defined(linux):
   type
-    WatchSubdir = object
-      rootDir: string
+    WatchSubdir* = object
+      rootDir*: string
 
 type
   WatchId* = distinct uint32

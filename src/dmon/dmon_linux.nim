@@ -6,9 +6,6 @@ import std/inotify
 import logging
 import dmontypes
 
-type WatchSubdir = object
-  rootDir: string
-
 proc watchRecursive(
     watch: WatchState, dirname: string, fd: FileHandle, mask: uint32, followLinks: bool
 ) =
@@ -44,10 +41,10 @@ proc findSubdir(watch: WatchState, wd: cint): string =
       return watch.subdirs[i].rootDir
   return ""
 
-proc unwatchState(watch: WatchState) =
-  if dmon.watches[i] != nil:
-    discard close(dmon.watches[i].fd)
-    dmon.watches[i] = nil
+proc unwatchState(watch: var WatchState) =
+  if watch != nil:
+    discard close(watch.fd)
+    watch = nil
 
 # Main watch function
 proc watch*(
