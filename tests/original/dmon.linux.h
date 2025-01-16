@@ -1,11 +1,3 @@
-# 1 "tests/original/dmon.modified.h"
-# 1 "<built-in>" 1
-# 1 "<built-in>" 3
-# 424 "<built-in>" 3
-# 1 "<command line>" 1
-# 1 "<built-in>" 2
-# 1 "tests/original/dmon.modified.h" 2
-# 95 "tests/original/dmon.modified.h"
 typedef struct { uint32_t id; } dmon_watch_id;
 
 
@@ -43,79 +35,6 @@ typedef enum dmon_action_t {
     return (uint8_t)(ch - from) <= (uint8_t)(to - from);
 }
 
-              bool _dmon_isupperchar(char ch)
-{
-    return _dmon_isrange(ch, 'A', 'Z');
-}
-
-              char _dmon_tolowerchar(char ch)
-{
-    return ch + (_dmon_isupperchar(ch) ? 0x20 : 0);
-}
-
-              char* _dmon_tolower(char* dst, int dst_sz, const char* str)
-{
-    int offset = 0;
-    int dst_max = dst_sz - 1;
-    while (*str && offset < dst_max) {
-        dst[offset++] = _dmon_tolowerchar(*str);
-        ++str;
-    }
-    dst[offset] = '\0';
-    return dst;
-}
-
-              char* _dmon_strcpy(char* dst, int dst_sz, const char* src)
-{
-    assert(dst);
-    assert(src);
-
-    const int32_t len = (int32_t)strlen(src);
-    const int32_t _max = dst_sz - 1;
-    const int32_t num = (len < _max ? len : _max);
-    memcpy(dst, src, num);
-    dst[num] = '\0';
-
-    return dst;
-}
-
-              char* _dmon_unixpath(char* dst, int size, const char* path)
-{
-    size_t len = strlen(path), i;
-    len = ((len) < ((size_t)size - 1) ? (len) : ((size_t)size - 1));
-
-    for (i = 0; i < len; i++) {
-        if (path[i] != '\\')
-            dst[i] = path[i];
-        else
-            dst[i] = '/';
-    }
-    dst[len] = '\0';
-    return dst;
-}
-
-
-              char* _dmon_strcat(char* dst, int dst_sz, const char* src)
-{
-    int len = (int)strlen(dst);
-    return _dmon_strcpy(dst + len, dst_sz - len, src);
-}
-# 350 "tests/original/dmon.modified.h"
-static void * stb__sbgrowf(void *arr, int increment, int itemsize)
-{
-    int dbl_cur = arr ? 2*((int *) (arr) - 2)[0] : 0;
-    int min_needed = ((arr) ? ((int *) (arr) - 2)[1] : 0) + increment;
-    int m = dbl_cur > min_needed ? dbl_cur : min_needed;
-    int *p = (int *) realloc(arr ? ((int *) (arr) - 2) : 0, itemsize * m + sizeof(int)*2);
-    if (p) {
-        if (!arr)
-            p[1] = 0;
-        p[0] = m;
-        return p+2;
-    } else {
-        return (void *) (2*sizeof(int));
-    }
-}
 
 
 typedef void (_dmon_watch_cb)(dmon_watch_id, dmon_action, const char*, const char*, const char*, void*);
