@@ -19,10 +19,6 @@ var
   dmonInitialized: bool
   dmon: DmonState
 
-iterator watchStates(dmon: DmonState): DmonWatchState =
-  for i in 0 ..< dmon.numWatches:
-    yield dmon.watches[i]
-
 proc fsEventCallback(
     streamRef: FSEventStreamRef,
     userData: pointer,
@@ -222,67 +218,16 @@ proc deinitDmon*() =
   dmonInitialized = false
 
 proc watchDmon*(
+    dmon: var DmonState,
     rootdir: string,
     watchCb: DmonWatchCallback,
     flags: set[DmonWatchFlags],
     userData: pointer,
 ): DmonWatchId =
-  assert(dmonInitialized)
-  assert(not rootdir.isEmptyOrWhitespace)
-  assert(watchCb != nil)
-  let rootdir = rootdir.absolutePath().expandFilename()
-
-  notice "watchDmon: starting"
-  # dmon.modifyWatches.store(1)
+  # Create FSEvents stream
+  let watch = dmon.watchDmonInit(rootdir, watchCb, flags, userData)
 
   withLock dmon.threadLock:
-    notice "adding watches"
-    assert(dmon.numWatches < 64)
-    if dmon.numWatches >= 64:
-      notice "Exceeding maximum number of watches"
-      return DmonWatchId(0)
-
-    let numFreeList = 64 - dmon.numWatches
-    let index = dmon.freeList[numFreeList - 1]
-    let id = uint32(index + 1)
-
-    if dmon.watches[index] == nil:
-      dmon.watches[index] = DmonWatchState()
-
-    inc dmon.numWatches
-
-    let watch = dmon.watches[id - 1]
-    watch.id = DmonWatchId(id)
-    watch.watchFlags = flags
-    watch.watchCb = watchCb
-    watch.userData = userData
-
-    # Validate directory
-    if not dirExists(rootdir):
-      warn "Could not open/read directory: ", rootdir
-      dec dmon.numWatches
-      # return DmonWatchId(0)
-      raise newException(KeyError, "could not open/read root directory: " & rootdir)
-
-    # Handle symlinks
-    var finalPath = rootdir
-    if flags.contains(DmonWatchFlags.FollowSymlinks):
-      try:
-        finalPath = expandSymlink(rootdir)
-      except OSError:
-        warn "Failed to resolve symlink: ", rootdir
-        dec dmon.numWatches
-        return DmonWatchId(0)
-
-    # Setup watch path
-    watch.rootdir = finalPath.normalizedPath
-    if not watch.rootdir.endsWith("/"):
-      watch.rootdir.add "/"
-
-    watch.rootdirUnmod = watch.rootdir
-    watch.rootdir = watch.rootdir.toLowerAscii
-
-    # Create FSEvents stream
     let cfPath = CFStringCreateWithCString(
       nil.CFAllocatorRef, watch.rootdirUnmod.cstring, kCFStringEncodingUTF8
     )
@@ -296,7 +241,7 @@ proc watchDmon*(
 
     var ctx = FSEventStreamContext(
       version: 0,
-      info: cast[pointer](id),
+      info: cast[pointer](watch.id),
       retain: nil,
       release: nil,
       copyDescription: nil,
@@ -318,12 +263,12 @@ proc watchDmon*(
     if watch.fsEvStreamRef.pointer.isNil:
       warn "Failed to create FSEvents stream"
       dec dmon.numWatches
-      return DmonWatchId(0)
+      raise newException(ValueError, "Exceeding maximum number of watches")
 
     notice "FSEventStreamCreated ", fsEvStreamRef = watch.fsEvStreamRef.pointer.repr
     # dmon.modifyWatches.store(0)
-    result = DmonWatchId(id)
-  notice "watchDmon: done"
+    result = DmonWatchId(watch.id)
+    notice "watchDmon: done"
 
 proc unwatchDmon*(id: DmonWatchId) =
   assert(dmonInitialized)
@@ -367,7 +312,7 @@ when isMainModule:
       "./tests/"
     else:
       args[0]
-  discard watchDmon(root, cb, {Recursive}, nil)
+  discard dmon.watchDmon(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(30_000)
   echo("done ..")

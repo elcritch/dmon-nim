@@ -66,13 +66,17 @@ type
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
-proc watchDmon*(
+iterator watchStates*(dmon: DmonState): DmonWatchState =
+  for i in 0 ..< dmon.numWatches:
+    yield dmon.watches[i]
+
+proc watchDmonInit*(
     dmon: var DmonState,
     rootdir: string,
     watchCb: DmonWatchCallback,
     flags: set[DmonWatchFlags],
     userData: pointer,
-): DmonWatchId =
+): DmonWatchState =
   assert(not rootdir.isEmptyOrWhitespace)
   assert(watchCb != nil)
   let rootdir = rootdir.absolutePath().expandFilename()
@@ -84,8 +88,7 @@ proc watchDmon*(
     notice "adding watches"
     assert(dmon.numWatches < 64)
     if dmon.numWatches >= 64:
-      notice "Exceeding maximum number of watches"
-      return DmonWatchId(0)
+      raise newException(ValueError, "Exceeding maximum number of watches")
 
     let numFreeList = 64 - dmon.numWatches
     let index = dmon.freeList[numFreeList - 1]
@@ -96,7 +99,7 @@ proc watchDmon*(
 
     inc dmon.numWatches
 
-    let watch = dmon.watches[id - 1]
+    let watch: DmonWatchState = dmon.watches[id - 1]
     watch.id = DmonWatchId(id)
     watch.watchFlags = flags
     watch.watchCb = watchCb
@@ -117,7 +120,7 @@ proc watchDmon*(
       except OSError:
         warn "Failed to resolve symlink: ", rootdir
         dec dmon.numWatches
-        return DmonWatchId(0)
+        raise newException(ValueError, "Exceeding maximum number of watches")
 
     # Setup watch path
     watch.rootdir = finalPath.normalizedPath
@@ -126,5 +129,6 @@ proc watchDmon*(
 
     watch.rootdir = watch.rootdir.toLowerAscii
 
-    
+    result = watch
+ 
   notice "watchDmon: done"
