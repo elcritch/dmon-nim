@@ -168,8 +168,10 @@ proc processEvents(events: seq[FileEvent]) =
 # const BufferSize = sizeof(FileEvent) * 1024
 const MaxWatches = 8192
 
+var starttm = getMonoTime()
+
 proc processWatches() =
-  debug "monitor: processWatches "
+  # trace "monitor: processWatches "
 
   # setup watches / readfds
   # var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
@@ -185,12 +187,12 @@ proc processWatches() =
 
   var timeout: Timeval
   timeout.tv_sec = posix.Time(0)
-  timeout.tv_usec = Suseconds(100_000) # 100ms timeout
+  timeout.tv_usec = Suseconds(10_000) # 100ms timeout
 
   if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
     return
 
-  var starttm = getMonoTime()
+  # var starttm = getMonoTime()
   var watches: seq[WatchState]
   withLock(dmonInst.threadLock):
     watches = dmonInst.watchStates().toSeq()
@@ -204,7 +206,7 @@ proc processWatches() =
         trace "inotify isset: ", watchFd = watch.fd
 
         var events: array[MaxWatches, byte]  # event buffer
-        while true:
+        block:
           # if not dmonInst.quit:
           let n = read(watch.fd, addr events, MaxWatches)
           trace "processWatches: inotify read", watchFd = watch.fd, n = n
@@ -232,19 +234,27 @@ proc processWatches() =
               )
               dmonInst.events.add(event)
 
-          let ts = getMonoTime()
-          if (ts - starttm).inMilliseconds > 100:
-            trace "processWatches: finished inotify events", watchFd = watch.fd
-            processEvents(move dmonInst.events)
-            assert dmonInst.events.len() == 0
-            starttm = ts
+          # let ts = getMonoTime()
+          # if (ts - starttm).inMilliseconds > 100:
+          # trace "processWatches: finished inotify events", watchFd = watch.fd
+          # processEvents(move dmonInst.events)
+          # assert dmonInst.events.len() == 0
+          # starttm = ts
 
     # Check elapsed time and process events if needed
     # let currentTime = getTime()
     # let dt = (currentTime - startTime).inMicroseconds
     # startTime = currentTime
     # microSecsElapsed += dt
-    
+    # trace "processWatches: finished inotify events", watchFd = watch.fd
+
+    let ts = getMonoTime()
+    if (ts - starttm).inMilliseconds > 100:
+      trace "processWatches: finished inotify events"
+      processEvents(move dmonInst.events)
+      assert dmonInst.events.len() == 0
+      starttm = ts
+
     # if microSecsElapsed > 100_000 and dmonInst.events.len > 0:
     # microSecsElapsed = 0
 
