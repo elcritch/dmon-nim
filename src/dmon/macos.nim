@@ -159,7 +159,7 @@ proc processEvents(events: seq[DmonFsEvent]) =
   # Process final events
   for i, ev in events:
     if ev.skip:
-      debug "skipping event: ", i = i, ev = ev.repr
+      trace "skipping event: ", i = i, ev = ev.repr
       continue
 
     let watch = dmon.watches[uint32(ev.watchId) - 1]
