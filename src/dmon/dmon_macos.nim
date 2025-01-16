@@ -132,6 +132,18 @@ proc processEvents(events: seq[FileEvent]) =
         ev.watchId, Delete, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
 
+proc processWatches() =
+  for watch in dmon.watchStates():
+    if not watch.init:
+      info "initialize watch ", watch = watch.repr
+      assert(not watch.fsEvStreamRef.pointer.isNil)
+      FSEventStreamScheduleWithRunLoop(
+        watch.fsEvStreamRef, dmon.cfLoopRef, kCFRunLoopDefaultMode
+      )
+      let sres = FSEventStreamStart(watch.fsEvStreamRef)
+      debug "initialized watch ", sres = sres.repr
+      watch.init = true
+
 proc monitorThread() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
@@ -149,18 +161,7 @@ proc monitorThread() {.thread.} =
 
       withLock(dmon.threadLock):
         # debug "processing watches ", numWatches = dmon.numWatches
-
-        for watch in dmon.watchStates():
-          if not watch.init:
-            info "initialize watch ", watch = watch.repr
-            assert(not watch.fsEvStreamRef.pointer.isNil)
-            FSEventStreamScheduleWithRunLoop(
-              watch.fsEvStreamRef, dmon.cfLoopRef, kCFRunLoopDefaultMode
-            )
-            let sres = FSEventStreamStart(watch.fsEvStreamRef)
-            debug "initialized watch ", sres = sres.repr
-            watch.init = true
-
+        processWatches()
         let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
         trace "CFRunLoopRunInMode result: ", res = res
         processEvents(move dmon.events)
