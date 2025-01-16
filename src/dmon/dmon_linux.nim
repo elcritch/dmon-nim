@@ -158,14 +158,19 @@ proc processEvents(events: seq[FileEvent]) =
 
   dmon.events.setLen(0)
 
+const BufferSize = sizeof(FileEvent) * 1024
+
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
-    const BufferSize = sizeof(FileEvent) * 1024
-    var buffer: array[1024, InotifyEvent]
+    notice "starting thread"
     
-    var startTime: times.Time
+    withLock(dmon.threadLock):
+      notice "signal lock"
+      signal(dmon.threadSem) # dispatch_semaphore_signal(dmon.threadSem)
+
+    # var startTime: times.Time
     # var microSecsElapsed: int64 = 0
-    startTime = getTime()
+    # startTime = getTime()
 
     while not dmon.quit:
       if dmon.numWatches == 0:
@@ -174,6 +179,7 @@ proc monitorThread*() {.thread.} =
         continue
 
       withLock(dmon.threadLock):
+        var buffer: array[1024, InotifyEvent]
         var readfds: TFdSet
         FD_ZERO(readfds)
         
