@@ -80,6 +80,9 @@ proc watch*(
     result = WatchId(watch.id)
     notice "watchDmon: done"
 
+proc initDmonImpl*() =
+  discard
+
 proc unwatchState(watch: WatchState) =
   if watch != nil:
     discard close(watch.fd)
