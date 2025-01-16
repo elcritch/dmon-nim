@@ -138,12 +138,33 @@ proc watchDmonInit*(
 var
   dmon*: DmonState
 
-proc initDmon*() =
+template unwatch*(id: WatchId) =
+  mixin unwatchState
+  assert(dmon.initialized)
+  assert(uint32(id) > 0)
+
+  let index = int(uint32(id) - 1)
+  assert(index < 64)
+  assert(dmon.watches[index] != nil)
+  assert(dmon.numWatches > 0)
+
+  if dmon.watches[index] != nil:
+    notice "unwatch location", id = id.repr
+    withLock dmon.threadLock:
+      unwatchState(dmon.watches[index])
+      dmon.watches[index] = nil
+
+      dec dmon.numWatches
+      let numFreeList = 64 - dmon.numWatches
+      dmon.freeList[numFreeList - 1] = index
+
+  notice "unwatch done"
+
+template initDmon*() =
+  mixin initDmonImpl
   initLock(dmon.threadLock)
   initCond(dmon.threadSem)
-
-  dmon.cfAllocRef = createBasicDefaultCFAllocator()
-  echo "cfAllocRef: ", dmon.cfAllocRef.repr
+  initDmonImpl()
 
 template startDmonThread*() =
   mixin monitorThread

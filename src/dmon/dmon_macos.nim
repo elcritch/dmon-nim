@@ -231,27 +231,9 @@ proc watch*(
     result = WatchId(watch.id)
     notice "watchDmon: done"
 
-proc unwatch*(id: WatchId) =
-  assert(dmon.initialized)
-  assert(uint32(id) > 0)
-
-  let index = int(uint32(id) - 1)
-  assert(index < 64)
-  assert(dmon.watches[index] != nil)
-  assert(dmon.numWatches > 0)
-
-  if dmon.watches[index] != nil:
-    notice "unwatch", id = id.repr
-    withLock dmon.threadLock:
-      unwatchState(dmon.watches[index])
-      dmon.watches[index] = nil
-
-      dec dmon.numWatches
-      let numFreeList = 64 - dmon.numWatches
-      dmon.freeList[numFreeList - 1] = index
-
-    # dmon.modifyWatches.store(0)
-  notice "unwatch done"
+proc initDmonImpl() =
+  dmon.cfAllocRef = createBasicDefaultCFAllocator()
+  echo "cfAllocRef: ", dmon.cfAllocRef.repr
 
 when isMainModule:
   let cb: WatchCallback = proc(
