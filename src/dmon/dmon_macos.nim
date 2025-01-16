@@ -47,7 +47,7 @@ proc fsEventCallback(
       watchId = watchId.int,
       path = path
 
-    var ev = DmonFsEvent()
+    var ev = FsEvent()
     # Convert path to unix style and make relative to watch root
     var absPath = nativeToUnixPath(path)
     let watchRoot = watch.rootdir.toLowerAscii
@@ -64,7 +64,7 @@ proc fsEventCallback(
     notice "fsEventCallback:event:adding: ", ev = ev.repr
     dmon.events.add(ev)
 
-proc processEvents(events: seq[DmonFsEvent]) =
+proc processEvents(events: seq[FsEvent]) =
   trace "processing processEvents ", eventsLen = dmon.events.len
   for i, ev in events:
     if ev.skip:
@@ -175,7 +175,7 @@ proc monitorThread() {.thread.} =
     CFRunLoopStop(dmon.cfLoopRef)
     dmon.cfLoopRef = nil.CFRunLoopRef
 
-proc unwatchState(watch: DmonWatchState) =
+proc unwatchState(watch: WatchState) =
   if not watch.fsEvStreamRef.pointer.isNil:
     FSEventStreamStop(watch.fsEvStreamRef)
     FSEventStreamInvalidate(watch.fsEvStreamRef)
@@ -220,7 +220,7 @@ proc deinitDmon*() =
 proc watchDmon*(
     dmon: var DmonState,
     rootdir: string,
-    watchCb: DmonWatchCallback,
+    watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
 ): WatchId =
@@ -291,7 +291,7 @@ proc unwatchDmon*(id: WatchId) =
     # dmon.modifyWatches.store(0)
 
 when isMainModule:
-  let cb: DmonWatchCallback = proc(
+  let cb: WatchCallback = proc(
       watchId: WatchId,
       action: DmonAction,
       rootdir, filepath, oldfilepath: string,

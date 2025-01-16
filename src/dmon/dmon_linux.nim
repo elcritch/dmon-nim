@@ -7,23 +7,6 @@ import logging
 
 
 type
-  WatchId* = distinct uint32
-
-  WatchFlags* = enum
-    wfRecursive = 0           # Watch directories recursively
-    wfFollowSymlinks = 1      # Follow symbolic links
-    wfOutofScopeLinks = 2     # Allow symlinks outside watched tree
-    wfIgnoreDirectories = 3   # Don't report directory events
-
-  Action* = enum
-    aCreate = 1              # File/directory created 
-    aDelete                  # File/directory deleted
-    aModify                  # File/directory modified
-    aMove                    # File/directory moved/renamed
-
-  WatchCallback* = proc(watchId: WatchId, action: Action, rootDir: string, 
-                       filePath: string, oldFilePath: string = "", userData: pointer = nil) {.cdecl.}
-
   WatchSubdir = object
     rootDir: string
 

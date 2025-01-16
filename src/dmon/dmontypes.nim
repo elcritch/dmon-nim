@@ -20,20 +20,20 @@ type
     OutOfScopeLinks = 0x4
     IgnoreDirectories = 0x8
 
-  DmonAction* = enum
+  DmonAction* {.pure.} = enum
     Create = 1
     Delete
     Modify
     Move
 
-  DmonWatchCallback* = proc(
+  WatchCallback* = proc(
     watchId: WatchId,
     action: DmonAction,
     rootdir, filepath, oldfilepath: string,
     userData: pointer,
   )
 
-  DmonFsEvent* = ref object of RootObj
+  FsEvent* = ref object of RootObj
     filepath*: string
     watchId*: WatchId
     skip*: bool
@@ -42,10 +42,10 @@ type
       eventFlags*: set[FSEventStreamEventFlag]
       moveValid*: bool
 
-  DmonWatchState* = ref object of RootObj
+  WatchState* = ref object of RootObj
     id*: WatchId
     watchFlags*: set[WatchFlags]
-    watchCb*: DmonWatchCallback
+    watchCb*: WatchCallback
     userData*: pointer
     rootdir*: string
     rootdirUnmod*: string
@@ -54,9 +54,9 @@ type
       fsEvStreamRef*: FSEventStreamRef
 
   DmonState* = object
-    watches*: array[64, DmonWatchState]
+    watches*: array[64, WatchState]
     freeList*: array[64, int]
-    events*: seq[DmonFsEvent]
+    events*: seq[FsEvent]
     numWatches*: int
     threadHandle*: Thread[void]
     threadLock*: Lock
@@ -66,17 +66,17 @@ type
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
-iterator watchStates*(dmon: DmonState): DmonWatchState =
+iterator watchStates*(dmon: DmonState): WatchState =
   for i in 0 ..< dmon.numWatches:
     yield dmon.watches[i]
 
 proc watchDmonInit*(
     dmon: var DmonState,
     rootdir: string,
-    watchCb: DmonWatchCallback,
+    watchCb: WatchCallback,
     flags: set[WatchFlags],
     userData: pointer,
-): DmonWatchState =
+): WatchState =
   assert(not rootdir.isEmptyOrWhitespace)
   assert(watchCb != nil)
   let rootdir = rootdir.absolutePath().expandFilename()
@@ -95,11 +95,11 @@ proc watchDmonInit*(
     let id = uint32(index + 1)
 
     if dmon.watches[index] == nil:
-      dmon.watches[index] = DmonWatchState()
+      dmon.watches[index] = WatchState()
 
     inc dmon.numWatches
 
-    let watch: DmonWatchState = dmon.watches[id - 1]
+    let watch: WatchState = dmon.watches[id - 1]
     watch.id = WatchId(id)
     watch.watchFlags = flags
     watch.watchCb = watchCb
