@@ -25,7 +25,7 @@ proc main() =
       "./tests/"
     else:
       args[0]
-  let watchId = dmon.watch(root, cb, {Recursive}, nil)
+  let watchId: WatchId = dmon.watch(root, cb, {Recursive}, nil)
   # discard watchDmon("/tmp/testmon/", cb, {Recursive}, nil)
   os.sleep(10_000)
   watchId.unwatch()
