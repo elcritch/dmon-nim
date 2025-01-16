@@ -34,7 +34,7 @@ type
     userData: pointer,
   )
 
-  DmonFsEvent = object
+  DmonFsEvent = ref object
     filepath: string
     eventId: FSEventStreamEventId
     eventFlags: set[FSEventStreamEventFlag]
@@ -119,15 +119,15 @@ proc fsEventCallback(
 
 proc processEvents() =
   trace "processing processEvents ", eventsLen = dmon.events.len
-  for i in 0 ..< dmon.events.len:
-    var ev = addr dmon.events[i]
+  # for i in 0 ..< dmon.events.len:
+  var events: seq[DmonFsEvent]
+  for i, ev in events:
     if ev.skip:
       continue
 
     # Coalesce multiple modify events
     if ev.eventFlags.contains(kFSEventStreamEventFlagItemModified):
-      for j in (i + 1) ..< dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for checkEv in events[i+1..^1]:
         if checkEv.eventFlags.contains(kFSEventStreamEventFlagItemModified) and
             checkEv.filepath == ev.filepath:
           ev.skip = true
@@ -135,8 +135,8 @@ proc processEvents() =
 
     # Handle renames
     elif ev.eventFlags.contains(kFSEventStreamEventFlagItemRenamed) and not ev.moveValid:
-      for j in (i + 1) ..< dmon.events.len:
-        let checkEv = addr dmon.events[j]
+      for checkEv in events[i+1..^1]:
+        let checkEv = dmon.events[j]
         if checkEv.eventFlags.contains(kFSEventStreamEventFlagItemRenamed) and
             checkEv.eventId == ev.eventId + 1:
           ev.moveValid = true
@@ -159,7 +159,8 @@ proc processEvents() =
           ev.eventFlags.incl kFSEventStreamEventFlagItemCreated
 
   # Process final events
-  for i in 0 ..< dmon.events.len:
+  for i in 0 ..< events.len:
+  # for i, ev in events:
     let ev = addr dmon.events[i]
     if ev.skip:
       debug "skipping event: ", i = i, ev = ev.repr
@@ -191,8 +192,6 @@ proc processEvents() =
       watch.watchCb(
         ev.watchId, Delete, watch.rootdirUnmod, ev.filepath, "", watch.userData
       )
-
-  dmon.events.setLen(0)
 
 proc monitorThread() {.thread.} =
   {.cast(gcsafe).}:
