@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.1"
+version       = "0.3.2"
 author        = "Jaremy Creechley"
 description   = "Library to monitor file changes in a folder. A port of Dmon."
 license       = "BSD-2-Clause"
