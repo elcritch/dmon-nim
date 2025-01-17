@@ -73,7 +73,6 @@ type
       notifyFilter*: DWORD
       overlapped*: OVERLAPPED
       dirHandle*: HANDLE
-      buffer*: array[64512, byte]
 
   DmonState* = object
     initialized*: bool

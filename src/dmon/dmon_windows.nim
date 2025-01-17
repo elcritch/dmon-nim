@@ -1,25 +1,30 @@
 import std/[strutils, locks]
+import std/private/globs
+import std/monotimes
+import std/times
 
 import winim/lean
 import winim/core
+import winim/winstr
 
+import logging
 import dmontypes
 
 # $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
 
-proc refreshWatch(watch: WatchState): bool =
+proc refreshWatch(watch: WatchState, buffer: openArray[byte]): bool =
   let recursive = watch.watchFlags.contains(Recursive)
   let res = ReadDirectoryChangesW(
     watch.dirHandle,
-    watch.buffer[0].addr,
-    DWORD(watch.buffer.len),
+    buffer[0].addr,
+    DWORD(buffer.len),
     WINBOOL(recursive),
     watch.notifyFilter,
     nil,
     watch.overlapped.addr,
     nil
   )
-  assert res != 0
+  return res != 0
 
 proc unwatchInternal(watch: WatchState) =
   CancelIo(watch.dirHandle)
@@ -96,14 +101,20 @@ proc processEvents() =
 
   dmonInst.events.setLen(0)
 
+template toSlice(buff: seq): openArray[byte] =
+  buff.toOpenArray(0, buff.len())
+
 proc processWatches() =
 
   var 
     waitHandles: array[64, HANDLE]
     watchStates: array[64, WatchState]
+    elapsed: Duration
+    startTime = getMonoTime()
+
 
   #   startTime: SYSTEMTIME
-  #   msecsElapsed: uint64
+  #   elapsed: uint64
   # GetSystemTime(startTime.addr)
 
   withLock(dmonInst.threadLock):
@@ -121,69 +132,51 @@ proc processWatches() =
     )
 
     if waitResult != WAIT_TIMEOUT:
+      var fileInfobufferSeq = newSeq[byte](64512)
       let watch = watchStates[waitResult - WAIT_OBJECT_0]
-      var bytes: DWORD
+      var bytes: DWORD = 0
       if GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE) != 0:
         var 
-          filepath: array[260, WCHAR]
-          notify: ptr FILE_NOTIFY_INFORMATION
           offset: int
 
         if bytes == 0:
-          discard refreshWatch(watch)
+          discard refreshWatch(watch, fileInfobufferSeq.toSlice())
           return
 
         while true:
-          notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[offset].addr)
-          
-          let count = WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            notify.FileName.addr,
-            int32(notify.FileNameLength div sizeof(WCHAR)),
-            filepath[0].addr,
-            259,
-            nil,
-            nil
-          )
-          filepath[count] = 0.WCHAR
+          let notify = cast[ptr FILE_NOTIFY_INFORMATION](fileInfobufferSeq[0].addr)
 
-          let unixPath = toUnixPath($filepath)
+          let filepath = $(cast[ptr WCHAR](notify.FileName))
+          let unixPath = nativeToUnixPath(filepath)
+          trace "processWatches: converted filename", filepath = filepath, unixPath = unixPath
           
           if dmonInst.events.len == 0:
-            msecsElapsed = 0
+            elapsed = initDuration(seconds=0)
 
-          var wev = DmonWin32Event(
+          var wev = FileEvent(
             action: notify.Action,
             watchId: watch.id,
+            filepath: unixPath,
             skip: false
           )
-          copyMem(wev.filepath[0].addr, unixPath[0].unsafeAddr, min(unixPath.len, 259))
-          wev.filepath[min(unixPath.len, 259)] = '\0'
           dmonInst.events.add(wev)
 
           if notify.NextEntryOffset == 0:
             break
           offset += int(notify.NextEntryOffset)
 
-        if not dmonInst.quit:
-          discard refreshWatch(watch)
+        # TODO: what's this bit about?
+        # if not dmonInst.quit:
+        #   discard refreshWatch(watch)
 
-    var currentTime: SYSTEMTIME
-    GetSystemTime(currentTime.addr)
+    var currentTime = getMonoTime()
     
-    let dt = (currentTime.wSecond - startTime.wSecond) * 1000 +
-             (currentTime.wMilliseconds - startTime.wMilliseconds)
     startTime = currentTime
-    msecsElapsed += uint64(dt)
+    elapsed = currentTime - startTime
 
-    if msecsElapsed > 100 and dmonInst.events.len > 0:
+    if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
       processEvents()
-      msecsElapsed = 0
-
-    release(dmonInst.mutex)
-
-  result = 0
+      elapsed = 0
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
