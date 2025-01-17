@@ -9,6 +9,6 @@ This is an idiomatic Nim port of the C library [dmon](https://github.com/septag/
 Platform support:
 - [x] MacOS
 - [x] Linux
-- [ ] Windows
+- [~] Windows - compiles with wine but untested
 - [ ] BSD
 
