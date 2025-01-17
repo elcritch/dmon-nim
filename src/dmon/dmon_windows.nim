@@ -6,7 +6,7 @@ import dmontypes
 
 # $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
 
-proc refreshWatch(watch: var WatchState): bool =
+proc refreshWatch(watch: WatchState): bool =
   let recursive = watch.watchFlags.contains(Recursive)
   let res = ReadDirectoryChangesW(
     watch.dirHandle,
@@ -95,25 +95,17 @@ proc processEvents() =
 
   dmonInst.events.setLen(0)
 
-proc dmonThread(arg: pointer): DWORD {.stdcall.} =
+proc processWatches() =
+
   var 
     waitHandles: array[64, HANDLE]
     watchStates: array[64, WatchState]
-    startTime: SYSTEMTIME
-    msecsElapsed: uint64
 
-  GetSystemTime(startTime.addr)
+  #   startTime: SYSTEMTIME
+  #   msecsElapsed: uint64
+  # GetSystemTime(startTime.addr)
 
-  while not dmonInst.quit:
-    if dmonInst.modifyWatches != 0 or not tryAcquire(dmonInst.mutex):
-      Sleep(10)
-      continue
-
-    if dmonInst.numWatches == 0:
-      Sleep(10)
-      release(dmonInst.mutex)
-      continue
-
+  withLock(dmonInst.threadLock):
     for i in 0 ..< 64:
       if not dmonInst.watches[i].isNil:
         let watch = dmonInst.watches[i]
@@ -138,8 +130,7 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
 
         if bytes == 0:
           discard refreshWatch(watch)
-          release(dmonInst.mutex)
-          continue
+          return
 
         while true:
           notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[offset].addr)
@@ -192,6 +183,12 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
     release(dmonInst.mutex)
 
   result = 0
+
+proc monitorThread*() {.thread.} =
+  {.cast(gcsafe).}:
+    notice "starting thread"
+    
+    threadExec()
 
 proc dmonInit*() =
   assert(not dmonInit)
