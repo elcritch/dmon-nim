@@ -1,7 +1,7 @@
 import std/[strutils, locks]
 
 import winim/lean
-import winim/winstr
+import winim/core
 
 import dmontypes
 
