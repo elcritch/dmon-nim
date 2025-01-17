@@ -4,6 +4,8 @@ import winim/lean
 
 import dmontypes
 
+# $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
+
 proc refreshWatch(watch: var WatchState): bool =
   let recursive = watch.watchFlags.contains(Recursive)
   let res = ReadDirectoryChangesW(
@@ -24,26 +26,26 @@ proc unwatchInternal(watch: WatchState) =
   CloseHandle(watch.dirHandle)
 
 proc processEvents() =
-  for i in 0 ..< dmon.events.len:
-    var ev = dmon.events[i].addr
+  for i in 0 ..< dmonInst.events.len:
+    var ev = dmonInst.events[i].addr
     if ev.skip:
       continue
 
     if ev.action == FILE_ACTION_MODIFIED or ev.action == FILE_ACTION_ADDED:
       # Coalesce multiple modifications
-      for j in (i + 1) ..< dmon.events.len:
-        let checkEv = dmon.events[j].addr
+      for j in (i + 1) ..< dmonInst.events.len:
+        let checkEv = dmonInst.events[j].addr
         if checkEv.action == FILE_ACTION_MODIFIED and
             ev.filepath == checkEv.filePath:
           checkEv.skip = true
 
   # Process events
-  for i in 0 ..< dmon.events.len:
-    let ev = dmon.events[i].addr
+  for i in 0 ..< dmonInst.events.len:
+    let ev = dmonInst.events[i].addr
     if ev.skip:
       continue
 
-    let watch = dmon.watches[ev.watchId.uint32 - 1]
+    let watch = dmonInst.watches[ev.watchId.uint32 - 1]
     if watch.isNil or watch.watchCb.isNil:
       continue
 
@@ -68,8 +70,8 @@ proc processEvents() =
       )
     of FILE_ACTION_RENAMED_OLD_NAME:
       # Find corresponding new name event
-      for j in (i + 1) ..< dmon.events.len:
-        let checkEv = dmon.events[j].addr
+      for j in (i + 1) ..< dmonInst.events.len:
+        let checkEv = dmonInst.events[j].addr
         if checkEv.action == FILE_ACTION_RENAMED_NEW_NAME:
           watch.watchCb(
             checkEv.watchId,
@@ -91,7 +93,7 @@ proc processEvents() =
       )
     else: discard
 
-  dmon.events.setLen(0)
+  dmonInst.events.setLen(0)
 
 proc dmonThread(arg: pointer): DWORD {.stdcall.} =
   var 
@@ -102,24 +104,24 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
 
   GetSystemTime(startTime.addr)
 
-  while not dmon.quit:
-    if dmon.modifyWatches != 0 or not tryAcquire(dmon.mutex):
+  while not dmonInst.quit:
+    if dmonInst.modifyWatches != 0 or not tryAcquire(dmonInst.mutex):
       Sleep(10)
       continue
 
-    if dmon.numWatches == 0:
+    if dmonInst.numWatches == 0:
       Sleep(10)
-      release(dmon.mutex)
+      release(dmonInst.mutex)
       continue
 
     for i in 0 ..< 64:
-      if not dmon.watches[i].isNil:
-        let watch = dmon.watches[i]
+      if not dmonInst.watches[i].isNil:
+        let watch = dmonInst.watches[i]
         watchStates[i] = watch
         waitHandles[i] = watch.overlapped.hEvent
 
     let waitResult = WaitForMultipleObjects(
-      DWORD(dmon.numWatches),
+      DWORD(dmonInst.numWatches),
       waitHandles[0].addr,
       FALSE,
       10
@@ -136,7 +138,7 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
 
         if bytes == 0:
           discard refreshWatch(watch)
-          release(dmon.mutex)
+          release(dmonInst.mutex)
           continue
 
         while true:
@@ -156,7 +158,7 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
 
           let unixPath = toUnixPath($filepath)
           
-          if dmon.events.len == 0:
+          if dmonInst.events.len == 0:
             msecsElapsed = 0
 
           var wev = DmonWin32Event(
@@ -166,13 +168,13 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
           )
           copyMem(wev.filepath[0].addr, unixPath[0].unsafeAddr, min(unixPath.len, 259))
           wev.filepath[min(unixPath.len, 259)] = '\0'
-          dmon.events.add(wev)
+          dmonInst.events.add(wev)
 
           if notify.NextEntryOffset == 0:
             break
           offset += int(notify.NextEntryOffset)
 
-        if not dmon.quit:
+        if not dmonInst.quit:
           discard refreshWatch(watch)
 
     var currentTime: SYSTEMTIME
@@ -183,41 +185,41 @@ proc dmonThread(arg: pointer): DWORD {.stdcall.} =
     startTime = currentTime
     msecsElapsed += uint64(dt)
 
-    if msecsElapsed > 100 and dmon.events.len > 0:
+    if msecsElapsed > 100 and dmonInst.events.len > 0:
       processEvents()
       msecsElapsed = 0
 
-    release(dmon.mutex)
+    release(dmonInst.mutex)
 
   result = 0
 
 proc dmonInit*() =
   assert(not dmonInit)
-  initLock(dmon.mutex)
+  initLock(dmonInst.mutex)
 
-  dmon.threadHandle = createThread(nil, 0, dmonThread, nil, 0, nil)
-  assert(not dmon.threadHandle.isNil)
+  dmonInst.threadHandle = createThread(nil, 0, dmonThread, nil, 0, nil)
+  assert(not dmonInst.threadHandle.isNil)
 
   for i in 0 ..< 64:
-    dmon.freelist[i] = 64 - i - 1
+    dmonInst.freelist[i] = 64 - i - 1
 
   dmonInit = true
 
 proc dmonDeinit*() =
   assert(dmonInit)
-  dmon.quit = true
+  dmonInst.quit = true
   
-  if dmon.threadHandle != INVALID_HANDLE_VALUE:
-    discard WaitForSingleObject(dmon.threadHandle, INFINITE)
-    CloseHandle(dmon.threadHandle)
+  if dmonInst.threadHandle != INVALID_HANDLE_VALUE:
+    discard WaitForSingleObject(dmonInst.threadHandle, INFINITE)
+    CloseHandle(dmonInst.threadHandle)
 
   for i in 0 ..< 64:
-    if not dmon.watches[i].isNil:
-      unwatchInternal(dmon.watches[i])
-      dealloc(dmon.watches[i])
+    if not dmonInst.watches[i].isNil:
+      unwatchInternal(dmonInst.watches[i])
+      dealloc(dmonInst.watches[i])
 
-  deinitLock(dmon.mutex)
-  dmon.events = @[]
+  deinitLock(dmonInst.mutex)
+  dmonInst.events = @[]
   reset(dmon)
   dmonInit = false
 
@@ -227,31 +229,31 @@ proc dmonWatch*(rootdir: string, watchCb: DmonWatchCallback,
   assert(not watchCb.isNil)
   assert(rootdir.len > 0)
 
-  discard interlockedExchange(dmon.modifyWatches.addr, 1)
-  acquire(dmon.mutex)
+  discard interlockedExchange(dmonInst.modifyWatches.addr, 1)
+  acquire(dmonInst.mutex)
 
-  assert(dmon.numWatches < 64)
-  if dmon.numWatches >= 64:
+  assert(dmonInst.numWatches < 64)
+  if dmonInst.numWatches >= 64:
     stderr.writeLine "Exceeding maximum number of watches"
-    release(dmon.mutex)
-    discard interlockedExchange(dmon.modifyWatches.addr, 0)
+    release(dmonInst.mutex)
+    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
     return DmonWatchId(0)
 
   let 
-    numFreelist = 64 - dmon.numWatches
-    index = dmon.freelist[numFreelist - 1]
+    numFreelist = 64 - dmonInst.numWatches
+    index = dmonInst.freelist[numFreelist - 1]
     id = uint32(index + 1)
 
-  if dmon.watches[index].isNil:
-    dmon.watches[index] = WatchState()
-    if dmon.watches[index].isNil:
-      release(dmon.mutex)
-      discard interlockedExchange(dmon.modifyWatches.addr, 0)
+  if dmonInst.watches[index].isNil:
+    dmonInst.watches[index] = WatchState()
+    if dmonInst.watches[index].isNil:
+      release(dmonInst.mutex)
+      discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
       return DmonWatchId(0)
 
-  inc dmon.numWatches
+  inc dmonInst.numWatches
 
-  let watch = dmon.watches[index]
+  let watch = dmonInst.watches[index]
   watch.id = DmonWatchId(id)
   watch.watchFlags = flags
   watch.watchCb = watchCb
@@ -289,17 +291,17 @@ proc dmonWatch*(rootdir: string, watchCb: DmonWatchCallback,
     if not refreshWatch(watch):
       unwatchInternal(watch)
       stderr.writeLine "ReadDirectoryChanges failed"
-      release(dmon.mutex)
-      discard interlockedExchange(dmon.modifyWatches.addr, 0)
+      release(dmonInst.mutex)
+      discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
       return DmonWatchId(0)
   else:
     stderr.writeLine "Could not open: ", rootdir
-    release(dmon.mutex)
-    discard interlockedExchange(dmon.modifyWatches.addr, 0)
+    release(dmonInst.mutex)
+    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
     return DmonWatchId(0)
 
-  release(dmon.mutex)
-  discard interlockedExchange(dmon.modifyWatches.addr, 0)
+  release(dmonInst.mutex)
+  discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
   result = DmonWatchId(id)
 
 proc dmonUnwatch*(id: DmonWatchId) =
@@ -308,20 +310,20 @@ proc dmonUnwatch*(id: DmonWatchId) =
   
   let index = uint32(id) - 1
   assert(index < 64)
-  assert(not dmon.watches[index].isNil)
-  assert(dmon.numWatches > 0)
+  assert(not dmonInst.watches[index].isNil)
+  assert(dmonInst.numWatches > 0)
 
-  if not dmon.watches[index].isNil:
-    discard interlockedExchange(dmon.modifyWatches.addr, 1)
-    acquire(dmon.mutex)
+  if not dmonInst.watches[index].isNil:
+    discard interlockedExchange(dmonInst.modifyWatches.addr, 1)
+    acquire(dmonInst.mutex)
 
-    unwatchInternal(dmon.watches[index])
-    dealloc(dmon.watches[index])
-    dmon.watches[index] = nil
+    unwatchInternal(dmonInst.watches[index])
+    dealloc(dmonInst.watches[index])
+    dmonInst.watches[index] = nil
 
-    dec dmon.numWatches
-    let numFreelist = 64 - dmon.numWatches
-    dmon.freelist[numFreelist - 1] = int32(index)
+    dec dmonInst.numWatches
+    let numFreelist = 64 - dmonInst.numWatches
+    dmonInst.freelist[numFreelist - 1] = int32(index)
 
-    release(dmon.mutex)
-    discard interlockedExchange(dmon.modifyWatches.addr, 0)
+    release(dmonInst.mutex)
+    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)

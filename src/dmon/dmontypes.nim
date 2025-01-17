@@ -51,7 +51,7 @@ type
       mask*: uint32
       cookie*: uint32
     elif defined(windows) or defined(winTest):
-      filepath*: array[260, char]
+      # filepath*: array[260, char]
       action*: DWORD
 
   WatchState* = ref object of RootObj
