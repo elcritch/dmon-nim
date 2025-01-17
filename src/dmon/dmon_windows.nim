@@ -26,7 +26,7 @@ proc refreshWatch(watch: WatchState, buffer: openArray[byte]): bool =
   )
   return res != 0
 
-proc unwatchInternal(watch: WatchState) =
+proc unwatchState*(watch: WatchState) =
   CancelIo(watch.dirHandle)
   CloseHandle(watch.overlapped.hEvent)
   CloseHandle(watch.dirHandle)
@@ -184,35 +184,8 @@ proc monitorThread*() {.thread.} =
     
     threadExec()
 
-proc dmonInit*() =
-  assert(not dmonInit)
-  initLock(dmonInst.mutex)
-
-  dmonInst.threadHandle = createThread(nil, 0, dmonThread, nil, 0, nil)
-  assert(not dmonInst.threadHandle.isNil)
-
-  for i in 0 ..< 64:
-    dmonInst.freelist[i] = 64 - i - 1
-
-  dmonInit = true
-
-proc dmonDeinit*() =
-  assert(dmonInit)
-  dmonInst.quit = true
-  
-  if dmonInst.threadHandle != INVALID_HANDLE_VALUE:
-    discard WaitForSingleObject(dmonInst.threadHandle, INFINITE)
-    CloseHandle(dmonInst.threadHandle)
-
-  for i in 0 ..< 64:
-    if not dmonInst.watches[i].isNil:
-      unwatchInternal(dmonInst.watches[i])
-      dealloc(dmonInst.watches[i])
-
-  deinitLock(dmonInst.mutex)
-  dmonInst.events = @[]
-  reset(dmon)
-  dmonInit = false
+proc initDmonImpl*() =
+  info "initDmonImpl "
 
 proc dmonWatch*(rootdir: string, watchCb: WatchCallback,
                 flags: WatchFlags, userData: pointer): DmonWatchId =
@@ -280,7 +253,7 @@ proc dmonWatch*(rootdir: string, watchCb: WatchCallback,
     assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
 
     if not refreshWatch(watch):
-      unwatchInternal(watch)
+      unwatchState(watch)
       stderr.writeLine "ReadDirectoryChanges failed"
       release(dmonInst.mutex)
       discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
@@ -308,7 +281,7 @@ proc dmonUnwatch*(id: DmonWatchId) =
     discard interlockedExchange(dmonInst.modifyWatches.addr, 1)
     acquire(dmonInst.mutex)
 
-    unwatchInternal(dmonInst.watches[index])
+    unwatchState(dmonInst.watches[index])
     dealloc(dmonInst.watches[index])
     dmonInst.watches[index] = nil
 
