@@ -176,7 +176,7 @@ proc processWatches() =
 
     if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
       processEvents()
-      elapsed = 0
+      elapsed = initDuration(seconds=0)
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
