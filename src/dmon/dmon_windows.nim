@@ -26,7 +26,7 @@ proc refreshWatch(watch: WatchState, buffer: openArray[byte]): bool =
   )
   return res != 0
 
-proc unwatchState*(watch: WatchState) =
+proc unwatchState*(watch: var WatchState) =
   CancelIo(watch.dirHandle)
   CloseHandle(watch.overlapped.hEvent)
   CloseHandle(watch.dirHandle)
@@ -195,7 +195,7 @@ proc watch*(
 ): WatchId =
 
   withLock dmonInst.threadLock:
-    let watch = watchInit(rootDirectory, watchCb, flags, userData)
+    var watch = watchInit(rootDirectory, watchCb, flags, userData)
     
     let rootWS: LPCSTR = watch.rootDir
     watch.dirHandle = CreateFileA(
