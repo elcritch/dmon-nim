@@ -224,18 +224,18 @@ proc watch*(
         error "ReadDirectoryChanges failed"
         # release(dmonInst.mutex)
         # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-        return DmonWatchId(0)
+        return WatchId(0)
     else:
       warning "Could not open: ", rootDir = watch.rootDir
       # release(dmonInst.mutex)
       # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-      return DmonWatchId(0)
+      return WatchId(0)
 
     # release(dmonInst.mutex)
     # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-    return DmonWatchId(id)
+    return WatchId(id)
 
-proc dmonUnwatch*(id: DmonWatchId) =
+proc dmonUnwatch*(id: WatchId) =
   assert(dmonInit)
   assert(uint32(id) > 0)
   
