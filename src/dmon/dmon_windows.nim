@@ -187,86 +187,53 @@ proc monitorThread*() {.thread.} =
 proc initDmonImpl*() =
   info "initDmonImpl "
 
-proc dmonWatch*(rootdir: string, watchCb: WatchCallback,
-                flags: WatchFlags, userData: pointer): DmonWatchId =
-  assert(dmonInit)
-  assert(not watchCb.isNil)
-  assert(rootdir.len > 0)
+proc watch*(
+    rootDirectory: string,
+    watchCb: WatchCallback,
+    flags: set[WatchFlags] = {},
+    userData: pointer = nil,
+): WatchId =
 
-  discard interlockedExchange(dmonInst.modifyWatches.addr, 1)
-  acquire(dmonInst.mutex)
+  withLock dmonInst.threadLock:
+    let watch = watchInit(rootDirectory, watchCb, flags, userData)
+    
+    let rootWS: LPCSTR = watch.rootDir
+    watch.dirHandle = CreateFileA(
+      rootWS,
+      GENERIC_READ,
+      FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE,
+      nil,
+      OPEN_EXISTING,
+      FILE_FLAG_BACKUP_SEMANTICS or FILE_FLAG_OVERLAPPED,
+      0.HANDLE
+    )
 
-  assert(dmonInst.numWatches < 64)
-  if dmonInst.numWatches >= 64:
-    stderr.writeLine "Exceeding maximum number of watches"
-    release(dmonInst.mutex)
-    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-    return DmonWatchId(0)
+    if watch.dirHandle != INVALID_HANDLE_VALUE:
+      watch.notifyFilter = FILE_NOTIFY_CHANGE_CREATION or
+                          FILE_NOTIFY_CHANGE_LAST_WRITE or
+                          FILE_NOTIFY_CHANGE_FILE_NAME or 
+                          FILE_NOTIFY_CHANGE_DIR_NAME or
+                          FILE_NOTIFY_CHANGE_SIZE
 
-  let 
-    numFreelist = 64 - dmonInst.numWatches
-    index = dmonInst.freelist[numFreelist - 1]
-    id = uint32(index + 1)
+      watch.overlapped.hEvent = CreateEvent(nil, TRUE, FALSE, nil)
+      assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
 
-  if dmonInst.watches[index].isNil:
-    dmonInst.watches[index] = WatchState()
-    if dmonInst.watches[index].isNil:
-      release(dmonInst.mutex)
-      discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
+      var fileInfobufferSeq = newSeq[byte](64512)
+      if not refreshWatch(watch, fileInfobufferSeq.toSlice()):
+        unwatchState(watch)
+        error "ReadDirectoryChanges failed"
+        # release(dmonInst.mutex)
+        # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
+        return DmonWatchId(0)
+    else:
+      warning "Could not open: ", rootDir = watch.rootDir
+      # release(dmonInst.mutex)
+      # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
       return DmonWatchId(0)
 
-  inc dmonInst.numWatches
-
-  let watch = dmonInst.watches[index]
-  watch.id = DmonWatchId(id)
-  watch.watchFlags = flags
-  watch.watchCb = watchCb
-  watch.userData = userData
-
-  let unixPath = toUnixPath(rootdir)
-  copyMem(watch.rootdir[0].addr, unixPath[0].unsafeAddr, min(unixPath.len, 259))
-  
-  # Ensure path ends with /
-  var pathLen = strlen(watch.rootdir[0].addr)
-  if watch.rootdir[pathLen - 1] != '/':
-    watch.rootdir[pathLen] = '/'
-    watch.rootdir[pathLen + 1] = '\0'
-
-  watch.dirHandle = CreateFileA(
-    rootdir,
-    GENERIC_READ,
-    FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE,
-    nil,
-    OPEN_EXISTING,
-    FILE_FLAG_BACKUP_SEMANTICS or FILE_FLAG_OVERLAPPED,
-    nil
-  )
-
-  if watch.dirHandle != INVALID_HANDLE_VALUE:
-    watch.notifyFilter = FILE_NOTIFY_CHANGE_CREATION or
-                        FILE_NOTIFY_CHANGE_LAST_WRITE or
-                        FILE_NOTIFY_CHANGE_FILE_NAME or 
-                        FILE_NOTIFY_CHANGE_DIR_NAME or
-                        FILE_NOTIFY_CHANGE_SIZE
-
-    watch.overlapped.hEvent = CreateEvent(nil, TRUE, FALSE, nil)
-    assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
-
-    if not refreshWatch(watch):
-      unwatchState(watch)
-      stderr.writeLine "ReadDirectoryChanges failed"
-      release(dmonInst.mutex)
-      discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-      return DmonWatchId(0)
-  else:
-    stderr.writeLine "Could not open: ", rootdir
-    release(dmonInst.mutex)
-    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-    return DmonWatchId(0)
-
-  release(dmonInst.mutex)
-  discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-  result = DmonWatchId(id)
+    # release(dmonInst.mutex)
+    # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
+    return DmonWatchId(id)
 
 proc dmonUnwatch*(id: DmonWatchId) =
   assert(dmonInit)

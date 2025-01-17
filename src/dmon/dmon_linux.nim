@@ -259,7 +259,7 @@ proc watch*(
     userData: pointer = nil,
 ): WatchId =
   ## Create Dmon watch using inotify events
-  let watch = watchInit(rootdir, watchCb, flags, userData)
+  let watch = watchInit(rootDir, watchCb, flags, userData)
 
   withLock dmonInst.threadLock:
     # Initialize inotify
