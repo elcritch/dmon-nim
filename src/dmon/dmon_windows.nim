@@ -54,18 +54,18 @@ proc processEvents() =
       watch.watchCb(
         ev.watchId,
         Create,
-        $watch.rootdir[0].unsafeAddr,
-        $ev.filepath[0].unsafeAddr,
-        nil,
+        watch.rootdir,
+        ev.filepath,
+        "",
         watch.userData
       )
     of FILE_ACTION_MODIFIED:
       watch.watchCb(
         ev.watchId,
-        Modify,
-        $watch.rootdir[0].unsafeAddr,
-        $ev.filepath[0].unsafeAddr,
-        nil,
+        DmonAction.Modify,
+        watch.rootdir,
+        ev.filepath,
+        "",
         watch.userData
       )
     of FILE_ACTION_RENAMED_OLD_NAME:
@@ -75,20 +75,20 @@ proc processEvents() =
         if checkEv.action == FILE_ACTION_RENAMED_NEW_NAME:
           watch.watchCb(
             checkEv.watchId,
-            Move,
-            $watch.rootdir[0].unsafeAddr,
-            $checkEv.filepath[0].unsafeAddr,
-            $ev.filepath[0].unsafeAddr,
+            DmonAction.Move,
+            watch.rootdir,
+            checkEv.filepath,
+            ev.filepath,
             watch.userData
           )
           break
     of FILE_ACTION_REMOVED:
       watch.watchCb(
         ev.watchId,
-        Delete,
-        $watch.rootdir[0].unsafeAddr,
-        $ev.filepath[0].unsafeAddr,
-        nil,
+        DmonAction.Delete,
+        watch.rootdir,
+        ev.filepath,
+        "",
         watch.userData
       )
     else: discard
@@ -223,8 +223,8 @@ proc dmonDeinit*() =
   reset(dmon)
   dmonInit = false
 
-proc dmonWatch*(rootdir: string, watchCb: DmonWatchCallback,
-                flags: DmonWatchFlags, userData: pointer): DmonWatchId =
+proc dmonWatch*(rootdir: string, watchCb: WatchCallback,
+                flags: WatchFlags, userData: pointer): DmonWatchId =
   assert(dmonInit)
   assert(not watchCb.isNil)
   assert(rootdir.len > 0)
