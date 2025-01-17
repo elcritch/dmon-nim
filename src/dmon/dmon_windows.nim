@@ -226,35 +226,11 @@ proc watch*(
         # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
         return WatchId(0)
     else:
-      warning "Could not open: ", rootDir = watch.rootDir
+      warn "Could not open: ", rootDir = watch.rootDir
       # release(dmonInst.mutex)
       # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
       return WatchId(0)
 
     # release(dmonInst.mutex)
     # discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
-    return WatchId(id)
-
-proc dmonUnwatch*(id: WatchId) =
-  assert(dmonInit)
-  assert(uint32(id) > 0)
-  
-  let index = uint32(id) - 1
-  assert(index < 64)
-  assert(not dmonInst.watches[index].isNil)
-  assert(dmonInst.numWatches > 0)
-
-  if not dmonInst.watches[index].isNil:
-    discard interlockedExchange(dmonInst.modifyWatches.addr, 1)
-    acquire(dmonInst.mutex)
-
-    unwatchState(dmonInst.watches[index])
-    dealloc(dmonInst.watches[index])
-    dmonInst.watches[index] = nil
-
-    dec dmonInst.numWatches
-    let numFreelist = 64 - dmonInst.numWatches
-    dmonInst.freelist[numFreelist - 1] = int32(index)
-
-    release(dmonInst.mutex)
-    discard interlockedExchange(dmonInst.modifyWatches.addr, 0)
+    return WatchId(watch.id)
