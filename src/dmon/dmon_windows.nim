@@ -53,7 +53,7 @@ proc processEvents() =
     of FILE_ACTION_ADDED:
       watch.watchCb(
         ev.watchId,
-        dmonActionCreate,
+        Create,
         $watch.rootdir[0].unsafeAddr,
         $ev.filepath[0].unsafeAddr,
         nil,
@@ -62,7 +62,7 @@ proc processEvents() =
     of FILE_ACTION_MODIFIED:
       watch.watchCb(
         ev.watchId,
-        dmonActionModify,
+        Modify,
         $watch.rootdir[0].unsafeAddr,
         $ev.filepath[0].unsafeAddr,
         nil,
@@ -75,7 +75,7 @@ proc processEvents() =
         if checkEv.action == FILE_ACTION_RENAMED_NEW_NAME:
           watch.watchCb(
             checkEv.watchId,
-            dmonActionMove,
+            Move,
             $watch.rootdir[0].unsafeAddr,
             $checkEv.filepath[0].unsafeAddr,
             $ev.filepath[0].unsafeAddr,
@@ -85,7 +85,7 @@ proc processEvents() =
     of FILE_ACTION_REMOVED:
       watch.watchCb(
         ev.watchId,
-        dmonActionDelete,
+        Delete,
         $watch.rootdir[0].unsafeAddr,
         $ev.filepath[0].unsafeAddr,
         nil,
