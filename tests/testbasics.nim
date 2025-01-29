@@ -12,9 +12,3 @@ import dmon
 suite "dmon test":
   test "todo: test dmon init":
     check false
-  test "todo: test dmon deinit":
-    check false
-  test "todo: test dmon watch":
-    check false
-  test "todo: test dmon monitoring":
-    check false
