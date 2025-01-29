@@ -1,5 +1,9 @@
 
 --define:dmonEnableChronicles
+--define:"chronicles_sinks:textlines"
+--define:"chronicles_indent:2"
+--define:"chronicles_timestamps:NoTimestamps"
+
 
 when defined(windowsXC):
   # --os:dmonEnableChronicles
