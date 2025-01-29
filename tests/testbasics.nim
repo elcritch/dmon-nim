@@ -15,6 +15,7 @@ import dmon/logging
 var
   eventFileModified = ""
   eventRootDir = ""
+  eventCount = 0
 
 suite "dmon test":
   test "todo: test dmon init":
@@ -32,6 +33,7 @@ suite "dmon test":
         echo "callback: ", "old: ", oldfilepath.repr
         eventFileModified = filepath
         eventRootdir = rootDir
+        eventCount.inc()
 
     assert not getCurrentDir().endsWith("tests/"), "this test should be run from the dmon-nim root dir"
 
