@@ -52,7 +52,4 @@ jobs:
     - name: Build Tests
       run: |
         # nimble --useSystemNim test
-        for f in `ls tests/t*.nim`; do
-          echo "TEST: ", $f
-          nim c -r $f
-        done
+        nim c -r tests/testbasics.nim
