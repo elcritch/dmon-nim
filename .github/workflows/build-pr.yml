@@ -39,6 +39,8 @@ jobs:
         echo "Nimble:: "
         nimble -v
         echo "Nim:: "
+        nimble install nim@2.0.14
+
         nim -v
 
     - name: Install Deps
