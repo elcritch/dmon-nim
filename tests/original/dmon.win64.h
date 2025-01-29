@@ -148,7 +148,7 @@ typedef struct dmon__state {
 static bool _dmon_init;
 static dmon__state _dmon;
 
-              bool _dmon_refresh_watch(dmon__watch_state* watch)
+bool _dmon_refresh_watch(dmon__watch_state* watch)
 {
     return ReadDirectoryChangesW(watch->dir_handle, watch->buffer, sizeof(watch->buffer),
                                  (watch->watch_flags & DMON_WATCHFLAGS_RECURSIVE) ? TRUE : FALSE,
