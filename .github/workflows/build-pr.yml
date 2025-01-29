@@ -41,8 +41,11 @@ jobs:
         nimble -v
         echo "Nim:: "
         # nimble install nim@2.0.14
-
         nim -v
+        echo "UNAME: "
+        uname -a
+        echo ARCH:
+        arch
 
     - name: Install Deps
       run: |
