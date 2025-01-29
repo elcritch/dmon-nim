@@ -52,10 +52,10 @@ jobs:
         # new atlas workspace
         nimble install --useSystemNim -d --verbose
 
+    - name: Test Follow
+      run: |
+        nim c -r tests/tfollow.nim
     - name: Build Tests
       run: |
         # nimble --useSystemNim test
         nim c -r tests/testbasics.nim
-    - name: Test Follow
-      run: |
-        nim c -r tests/tfollow.nim
