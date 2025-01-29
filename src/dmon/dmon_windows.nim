@@ -136,7 +136,7 @@ proc processWatches() =
       FALSE,
       10
     )
-    trace "processWatches: watchStates", waitResult = waitResult.repr
+    trace "processWatches: watchStates", waitResult = waitResult.repr, waitTimeout = WAIT_TIMEOUT
 
     if waitResult != WAIT_TIMEOUT:
       # var fileInfobufferSeq = newSeq[byte](64512)
