@@ -9,7 +9,7 @@ type
     file: File
 
 proc monitorsFiles() =
-  let names = ["tests/file.txt".absolutePath]
+  let names = ["file.txt".absolutePath]
   var sources: Table[int, FileSource]
   
   for name in names:
