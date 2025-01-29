@@ -46,8 +46,12 @@ jobs:
     - name: Install Deps
       run: |
         # new atlas workspace
-        nimble install --useSystemNim -d --verbose
+        nimble install --useSystemNim --deps --verbose
 
     - name: Build Tests
       run: |
-        nimble --useSystemNim test
+        # nimble --useSystemNim test
+        for f in `ls tests/t*.nim`; do
+          echo "TEST: ", $f
+          nim c -r $f
+        done
