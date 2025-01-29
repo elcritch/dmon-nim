@@ -1,5 +1,5 @@
 
-when defined(usingChronicles) and not defined(noLogging):
+when defined(dmonEnableChronicles) and not defined(noLogging):
   import chronicles
   export chronicles
 
