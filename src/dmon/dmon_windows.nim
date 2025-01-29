@@ -109,6 +109,7 @@ template toSlice(buff: seq): openArray[byte] =
   buff.toOpenArray(0, buff.len())
 
 proc processWatches() =
+  trace "processWatches"
 
   var 
     waitHandles: array[64, HANDLE]
@@ -122,6 +123,7 @@ proc processWatches() =
   # GetSystemTime(startTime.addr)
 
   withLock(dmonInst.threadLock):
+    trace "processWatches: watchStates"
     for i in 0 ..< 64:
       if not dmonInst.watches[i].isNil:
         let watch = dmonInst.watches[i]
@@ -134,6 +136,7 @@ proc processWatches() =
       FALSE,
       10
     )
+    trace "processWatches: watchStates", waitResult = waitResult.repr
 
     if waitResult != WAIT_TIMEOUT:
       # var fileInfobufferSeq = newSeq[byte](64512)
@@ -141,6 +144,7 @@ proc processWatches() =
       let watch = watchStates[waitResult - WAIT_OBJECT_0]
       var bytes: DWORD = 0
       if GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE) != 0:
+        trace "processWatches:GetOverlappedResult", watch = watch.repr
         var 
           offset: int
 
@@ -155,7 +159,7 @@ proc processWatches() =
 
           let filepath = $(cast[ptr WCHAR](notify.FileName))
           let unixPath = nativeToUnixPath(filepath)
-          trace "processWatches: converted filename", filepath = filepath, unixPath = unixPath
+          trace "processWatches: converted filename", filepath = filepath, unixPath = unixPath, fileNameWin = notify.FileName
           
           if dmonInst.events.len == 0:
             elapsed = initDuration(seconds=0)

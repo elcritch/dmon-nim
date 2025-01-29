@@ -170,7 +170,7 @@ template threadExec*() =
   while not dmonInst.quit:
     if dmonInst.numWatches == 0:
       os.sleep(100)
-      debug "monitorThread: no numWatches: "
+      debug "monitorThread: no numWatches"
       continue
 
     # debug "processing watches ", numWatches = dmonInst.numWatches
