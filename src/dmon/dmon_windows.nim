@@ -112,8 +112,8 @@ proc processWatches() =
   trace "processWatches"
 
   var 
-    waitHandles: array[64, HANDLE]
-    watchStates: array[64, WatchState]
+    waitHandlesArr: array[64, HANDLE]
+    watchStatesArr: array[64, WatchState]
     elapsed: Duration
     startTime = getMonoTime()
 
@@ -127,12 +127,12 @@ proc processWatches() =
     for i in 0 ..< 64:
       if not dmonInst.watches[i].isNil:
         let watch = dmonInst.watches[i]
-        watchStates[i] = watch
-        waitHandles[i] = watch.overlapped.hEvent
+        watchStatesArr[i] = watch
+        waitHandlesArr[i] = watch.overlapped.hEvent
 
     let waitResult = WaitForMultipleObjects(
       DWORD(dmonInst.numWatches),
-      waitHandles[0].addr,
+      waitHandlesArr[0].addr,
       FALSE,
       10
     )
@@ -141,7 +141,7 @@ proc processWatches() =
     if waitResult != WAIT_TIMEOUT:
       # var fileInfobufferSeq = newSeq[byte](64512)
       var fileInfobufferSeq = newSeq[byte](32768)
-      let watch = watchStates[waitResult - WAIT_OBJECT_0]
+      let watch = watchStatesArr[waitResult - WAIT_OBJECT_0]
       var bytes: DWORD = 0
       if GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE) != 0:
         trace "processWatches:GetOverlappedResult", watch = watch.repr
