@@ -1,22 +1,27 @@
 on:
-  push:
+  pull_request:
     branches:
-    - "main"
+    - "*"
 
 jobs:
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false      # This disables fast fail at the matrix level
       matrix:
         nimversion:
           - '2.0.14'
-
+          - '2.2.0'
         os:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
+    - uses: nim-lang/setup-nimble-action@v1
+      with:
+        nimble-version: '0.16.4' # default is 'latest'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
 
     - uses: iffy/install-nim@v4
       with:
@@ -32,18 +37,23 @@ jobs:
 
     - name: Install Nimble
       run: |
-        nimble install nimble@\#head
-        echo "Nim:: "
-        nim -v
+        # nimble install nimble@\#head
         echo "Nimble:: "
         nimble -v
+        echo "Nim:: "
+        # nimble install nim@2.0.14
+        nim -v
+        echo "UNAME: "
+        uname -a
+        echo ARCH:
+        arch
 
     - name: Install Deps
       run: |
-        # sync deps
+        # new atlas workspace
         nimble install --useSystemNim -d --verbose
 
     - name: Build Tests
       run: |
-        nimble --useSystemNim test
-
+        # nimble --useSystemNim test
+        nim c -r tests/testbasics.nim

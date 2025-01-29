@@ -12,8 +12,8 @@ jobs:
         nimversion:
           - '2.0.14'
         os:
-          # - ubuntu-latest
-          # - macOS-latest
+          - ubuntu-latest
+          - macOS-latest
           - windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -28,11 +28,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # - name: Cache packages
-    #   uses: actions/cache@v3
-    #   with:
-    #     path: ~/.nimble
-    #     key: ${{ runner.os }}-${{ hashFiles('sigils.nimble') }}
+    - name: Cache packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nimble
+        key: ${{ runner.os }}-${{ hashFiles('sigils.nimble') }}
 
     - name: Install Nimble
       run: |
