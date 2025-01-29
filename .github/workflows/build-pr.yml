@@ -15,23 +15,27 @@ jobs:
           - macOS-latest
           - windows-latest
     steps:
-    - uses: actions/checkout@v1
-
-    - uses: iffy/install-nim@v4
+    - uses: actions/checkout@v4
+    - uses: nim-lang/setup-nimble-action@v1
       with:
-        version: ${{ matrix.nimversion }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        nimble-version: '0.16.4' # default is 'latest'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Cache packages
-      uses: actions/cache@v3
-      with:
-        path: ~/.nimble
-        key: ${{ runner.os }}-${{ hashFiles('sigils.nimble') }}
+    # - uses: iffy/install-nim@v4
+    #   with:
+    #     version: ${{ matrix.nimversion }}
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Cache packages
+    #   uses: actions/cache@v3
+    #   with:
+    #     path: ~/.nimble
+    #     key: ${{ runner.os }}-${{ hashFiles('sigils.nimble') }}
 
     - name: Install Nimble
       run: |
-        nimble install nimble@\#head
+        # nimble install nimble@\#head
         echo "Nim:: "
         nim -v
         echo "Nimble:: "
