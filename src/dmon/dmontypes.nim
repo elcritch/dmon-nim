@@ -73,7 +73,7 @@ type
       overlapped*: OVERLAPPED
       dirHandle*: HANDLE
       oldFilepath*: array[260, char]
-      buffer*: array[4096, char]
+      buffer*: array[8192, char]
 
   DmonState* = object
     initialized*: bool

@@ -33,11 +33,11 @@ proc unwatchState*(watch: var WatchState) =
   CloseHandle(watch.dirHandle)
 
 proc processEvents(events: seq[FileEvent]) =
-  debug "processEvents:", events = events.repr
+  trace "processEvents:", events = events.repr
   for i in 0 ..< events.len:
     var ev = events[i].addr
     if ev.skip:
-      debug "processEvents:skip: ", ev = ev.repr
+      trace "processEvents:skip: ", ev = ev.repr
       continue
 
     if ev.action == FILE_ACTION_MODIFIED or ev.action == FILE_ACTION_ADDED:
@@ -52,15 +52,15 @@ proc processEvents(events: seq[FileEvent]) =
   for i in 0 ..< events.len:
     let ev = events[i].addr
     if ev.skip:
-      debug "processEvents:skip: ", ev = ev.repr
+      trace "processEvents:skip: ", ev = ev.repr
       continue
 
     let watch = dmonInst.watches[ev.watchId.uint32 - 1]
     if watch.isNil or watch.watchCb.isNil:
-      debug "processEvents:skip: watch nil: ", ev = ev.repr
+      trace "processEvents:skip: watch nil: ", ev = ev.repr
       continue
 
-    debug "processEvents:event: ", ev = ev.repr
+    trace "processEvents:event: ", ev = ev.repr
     case ev.action
     of FILE_ACTION_ADDED:
       watch.watchCb(
@@ -153,21 +153,19 @@ proc processWatches() =
           offset: int
 
         if bytes == 0:
-          debug "processWatches:refreshWatch:", watch = watch.repr
+          trace "processWatches:refreshWatch:", watch = watch.repr
           discard refreshWatch(watch)
           return
 
         while true:
-          debug "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
+          trace "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
           let notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[0].addr)
-          # debug "processWatches:watch:notify: ", notify = notify.repr
-          debug "processWatches:watch:notify: ",
+          trace "processWatches:watch:notify: ",
             NextEntryOffset= notify.NextEntryOffset,
             Action= notify.Action, FileNameLength= notify.FileNameLength,
             FileName= notify.FileName
-          # processWatches:watch:notify: tid=4740 notify="ptr FILE_NOTIFY_INFORMATION(NextEntryOffset: 0, Action: 1, FileNameLength: 16, FileName: [102])"
 
-          debug "processWatches:watch:notify:seq: ", notify = $watch.buffer[0..30]
+          trace "processWatches:watch:notify:seq: ", notify = $watch.buffer[0..30]
 
           let filepath = $cast[ptr WCHAR](notify.FileName[0].addr)
           let unixPath = nativeToUnixPath(filepath)
