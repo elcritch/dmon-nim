@@ -24,6 +24,7 @@ proc refreshWatch(watch: WatchState, buffer: var seq[byte]): bool =
     watch.overlapped.addr,
     nil
   )
+  trace "refreshWatch", readDirChanges = res
   return res != 0
 
 proc unwatchState*(watch: var WatchState) =
