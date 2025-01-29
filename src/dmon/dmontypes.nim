@@ -69,10 +69,11 @@ type
       subdirs*: seq[WatchSubdir]
       wds*: seq[cint]
     elif defined(windows) or defined(winTest):
-      oldFilepath*: array[260, char]
       notifyFilter*: DWORD
       overlapped*: OVERLAPPED
       dirHandle*: HANDLE
+      oldFilepath*: array[260, char]
+      buffer*: array[8192, char]
 
   DmonState* = object
     initialized*: bool

@@ -12,12 +12,12 @@ import dmontypes
 
 # $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
 
-proc refreshWatch(watch: WatchState, buffer: var seq[byte]): bool =
+proc refreshWatch(watch: WatchState): bool =
   let recursive = watch.watchFlags.contains(Recursive)
   let res = ReadDirectoryChangesW(
     watch.dirHandle,
-    buffer[0].addr,
-    DWORD(buffer.len),
+    watch.buffer[0].addr,
+    DWORD(watch.buffer.len),
     WINBOOL(recursive),
     watch.notifyFilter,
     nil,
@@ -142,7 +142,6 @@ proc processWatches() =
 
     if waitResult != WAIT_TIMEOUT:
       # var fileInfobufferSeq = newSeq[byte](64512)
-      var fileInfobufferSeq = newSeq[byte](32768)
       let watch = watchStatesArr[waitResult - WAIT_OBJECT_0]
       trace "processWatches: watchStatesArr", dirHandle = watch.dirHandle, overlapped = watch.overlapped, notifyFilter = watch.notifyFilter
 
@@ -155,14 +154,14 @@ proc processWatches() =
 
         if bytes == 0:
           debug "processWatches:refreshWatch:", watch = watch.repr
-          discard refreshWatch(watch, fileInfobufferSeq)
+          discard refreshWatch(watch)
           return
 
         while true:
           debug "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
-          let notify = cast[ptr FILE_NOTIFY_INFORMATION](fileInfobufferSeq[0].addr)
+          let notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[0].addr)
           debug "processWatches:watch:notify: ", notify = notify.repr
-          debug "processWatches:watch:notify:seq: ", notify = fileInfobufferSeq[0..300].repr
+          debug "processWatches:watch:notify:seq: ", notify = watch.buffer[0..30].repr
 
           let filepath = $(cast[ptr WCHAR](notify.FileName))
           let unixPath = nativeToUnixPath(filepath)
@@ -239,7 +238,7 @@ proc watch*(
       assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
 
       var fileInfobufferSeq = newSeq[byte](64512)
-      if not refreshWatch(watch, fileInfobufferSeq):
+      if not refreshWatch(watch):
         unwatchState(watch)
         error "ReadDirectoryChanges failed"
         # release(dmonInst.mutex)
