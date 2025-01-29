@@ -12,7 +12,9 @@ import std/[times, os, strformat, strutils]
 import dmon
 import dmon/logging
 
-var fileModified = ""
+var
+  eventFileModified = ""
+  eventRootDir = ""
 
 suite "dmon test":
   test "todo: test dmon init":
@@ -28,7 +30,10 @@ suite "dmon test":
         echo "callback: ", "rootDir: ", rootDir.repr
         echo "callback: ", "file: ", filepath.repr
         echo "callback: ", "old: ", oldfilepath.repr
-        fileModified = filepath
+        eventFileModified = filepath
+        eventRootdir = rootDir
+
+    assert not getCurrentDir().endsWith("tests/"), "this test should be run from the dmon-nim root dir"
 
     initDmon()
     startDmonThread()
@@ -37,7 +42,9 @@ suite "dmon test":
     let watchId: WatchId = watch("./tests/", cb, {Recursive}, nil)
     echo "TEST: watchId:repr: ", watchId.repr
     let watchId2: WatchId = watch("./src/", cb, {Recursive}, nil)
+
     echo("\nTEST: Waiting...")
+
     os.sleep(500)
     let testFile = "tests/file.txt".absolutePath
     let now1 = now()
@@ -46,10 +53,10 @@ suite "dmon test":
     echo(fmt"Waiting...")
 
     for i in 1..100:
-      if fileModified == "file.txt":
+      if eventFileModified == "file.txt":
         break
       os.sleep(100)
-    check fileModified == "file.txt"
+    check eventFileModified == "file.txt"
 
     watchId.unwatch()
     deinitDmon()
