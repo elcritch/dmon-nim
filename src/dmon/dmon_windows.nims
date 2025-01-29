@@ -1,5 +1,5 @@
 
---define:usingChronicles
+--define:dmonEnableChronicles
 
 when defined(linux):
   --os:windows

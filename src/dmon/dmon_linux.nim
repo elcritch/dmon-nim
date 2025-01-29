@@ -68,8 +68,8 @@ proc processEvents(events: seq[FileEvent]) =
           break
         elif (ev.mask and IN_ISDIR) != 0 and (checkEv.mask and (IN_ISDIR or IN_MODIFY)) != 0:
           # Handle directory modifications
-          var evPath = ev.filePath.strip(trailing = true, chars = {'/'})
-          var checkPath = checkEv.filePath.strip(trailing = true, chars = {'/'})
+          let evPath = ev.filePath.strip(trailing = true, chars = {'/'})
+          let checkPath = checkEv.filePath.strip(trailing = true, chars = {'/'})
           if evPath == checkPath:
             ev.skip = true
             break
@@ -132,6 +132,10 @@ proc processEvents(events: seq[FileEvent]) =
     if watch == nil or watch.watchCb == nil:
       continue
 
+    let relFilePath = ev.filePath.relativePath(watch.rootDir)
+    template callWatchCb(watch, kind: typed; origDir = relFilePath) =
+      watch.watchCb(watch.id, kind, watch.rootDir, relFilePath, origDir, watch.userData)
+
     if (ev.mask and IN_CREATE) != 0:
       if (ev.mask and IN_ISDIR) != 0 and Recursive in watch.watchFlags:
         var watchDir = watch.rootDir & ev.filePath & "/"
@@ -147,21 +151,25 @@ proc processEvents(events: seq[FileEvent]) =
         watch.subdirs.add subdir
         watch.wds.add wd
 
-      watch.watchCb(ev.watchId, Create, watch.rootDir, ev.filePath, "", watch.userData)
+      # watch.watchCb(ev.watchId, Create, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.callWatchCb(Create)
 
     elif (ev.mask and IN_MODIFY) != 0:
-      watch.watchCb(ev.watchId, Modify, watch.rootDir, ev.filePath, "", watch.userData)
+      # watch.watchCb(ev.watchId, Modify, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.callWatchCb(Modify)
 
     elif (ev.mask and IN_MOVED_FROM) != 0:
-      for j in (i+1)..<dmonInst.events.len:
-        let checkEv = addr dmonInst.events[j]
+      for j in (i+1)..<events.len:
+        let checkEv = addr events[j]
         if (checkEv.mask and IN_MOVED_TO) != 0 and ev.cookie == checkEv.cookie:
-          watch.watchCb(checkEv.watchId, Move, watch.rootDir,
-                       checkEv.filePath, ev.filePath, watch.userData)
+          # watch.watchCb(checkEv.watchId, Move, watch.rootDir,
+          #              checkEv.filePath, ev.filePath, watch.userData)
+          watch.callWatchCb(Move, checkEv.filePath)
           break
 
     elif (ev.mask and IN_DELETE) != 0:
-      watch.watchCb(ev.watchId, Delete, watch.rootDir, ev.filePath, "", watch.userData)
+      # watch.watchCb(ev.watchId, Delete, watch.rootDir, ev.filePath, "", watch.userData)
+      watch.callWatchCb(Delete)
 
   dmonInst.events.setLen(0)
 

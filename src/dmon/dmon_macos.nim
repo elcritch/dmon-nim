@@ -60,11 +60,14 @@ proc fsEventCallback(
 
     debug "fsEventCallback:event:adding: ", ev = ev.repr
     dmonInst.events.add(ev)
+    debug "fsEventCallback:events: ", dmonInst = dmonInst.addr.pointer.repr, events = dmonInst.events.repr
 
 proc processEvents(events: seq[FileEvent]) =
-  trace "processing processEvents ", eventsLen = dmonInst.events.len
+  debug "processEvents: processing ", eventsLen = events.len
+
   for i, ev in events:
     if ev.skip:
+      debug "processEvents:skip", ev= ev.repr
       continue
 
     # Coalesce multiple modify events
@@ -119,8 +122,8 @@ proc processEvents(events: seq[FileEvent]) =
         ev.watchId, Modify, watch.rootDirUnmod, ev.filepath, "", watch.userData
       )
     elif ev.eventFlags.contains(ItemRenamed):
-      for j in (i + 1) ..< dmonInst.events.len:
-        let checkEv = addr dmonInst.events[j]
+      for j in (i + 1) ..< events.len:
+        let checkEv = addr events[j]
         if checkEv.eventFlags.contains(ItemRenamed):
           watch.watchCb(
             checkEv.watchId, Move, watch.rootDirUnmod, checkEv.filepath, ev.filepath,
@@ -146,8 +149,9 @@ proc processWatches() =
         watch.init = true
 
     let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
-    trace "CFRunLoopRunInMode result: ", res = res
-    processEvents(move dmonInst.events)
+    trace "CFRunLoopRunInMode result: ", res = res, events = dmonInst.events.repr
+    if dmonInst.events.len() > 0:
+      processEvents(move dmonInst.events)
     assert dmonInst.events.len() == 0
 
 proc monitorThread*() {.thread.} =
@@ -176,6 +180,7 @@ proc watch*(
 ): WatchId =
   ## Create Dmon watch using FSEvents stream
   let watch = watchInit(rootDir, watchCb, flags, userData)
+  notice "Watch:Created: ", watch = watch.repr
 
   withLock dmonInst.threadLock:
     let cfPath = CFStringCreateWithCString(
@@ -198,6 +203,7 @@ proc watch*(
     )
     let flags = {FileEvents, NoDefer}
     notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
+    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32 
     watch.fsEvStreamRef = FSEventStreamCreate(
       dmonInst.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function

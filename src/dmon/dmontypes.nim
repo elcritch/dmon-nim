@@ -69,10 +69,11 @@ type
       subdirs*: seq[WatchSubdir]
       wds*: seq[cint]
     elif defined(windows) or defined(winTest):
-      oldFilepath*: array[260, char]
       notifyFilter*: DWORD
       overlapped*: OVERLAPPED
       dirHandle*: HANDLE
+      oldFilepath*: array[260, char]
+      buffer*: array[8192, char]
 
   DmonState* = object
     initialized*: bool
@@ -152,6 +153,8 @@ proc watchInit*(
     if not watch.rootDir.endsWith("/"):
       watch.rootDir.add "/"
 
+    when defined(macosx):
+      watch.rootdirUnmod = watch.rootdir
     watch.rootDir = watch.rootDir.toLowerAscii
 
     result = watch
@@ -168,7 +171,7 @@ template threadExec*() =
   while not dmonInst.quit:
     if dmonInst.numWatches == 0:
       os.sleep(100)
-      debug "monitorThread: no numWatches: "
+      debug "monitorThread: no numWatches"
       continue
 
     # debug "processing watches ", numWatches = dmonInst.numWatches
