@@ -196,6 +196,7 @@ proc processWatches() =
     startTime = currentTime
     elapsed = currentTime - startTime
 
+    trace "processWatches: elapsed", elapsed = elapsed, events = dmonInst.events.repr
     if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
       if dmonInst.events.len() > 0:
         processEvents(move dmonInst.events)
