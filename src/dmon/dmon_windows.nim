@@ -31,23 +31,24 @@ proc unwatchState*(watch: var WatchState) =
   CloseHandle(watch.overlapped.hEvent)
   CloseHandle(watch.dirHandle)
 
-proc processEvents() =
-  for i in 0 ..< dmonInst.events.len:
-    var ev = dmonInst.events[i].addr
+proc processEvents(events: seq[FileEvent]) =
+  trace "processEvents:", watchWd = watchWd, wd = wd
+  for i in 0 ..< events.len:
+    var ev = events[i].addr
     if ev.skip:
       continue
 
     if ev.action == FILE_ACTION_MODIFIED or ev.action == FILE_ACTION_ADDED:
       # Coalesce multiple modifications
-      for j in (i + 1) ..< dmonInst.events.len:
-        let checkEv = dmonInst.events[j].addr
+      for j in (i + 1) ..< events.len:
+        let checkEv = events[j].addr
         if checkEv.action == FILE_ACTION_MODIFIED and
             ev.filepath == checkEv.filePath:
           checkEv.skip = true
 
   # Process events
-  for i in 0 ..< dmonInst.events.len:
-    let ev = dmonInst.events[i].addr
+  for i in 0 ..< events.len:
+    let ev = events[i].addr
     if ev.skip:
       continue
 
@@ -76,8 +77,8 @@ proc processEvents() =
       )
     of FILE_ACTION_RENAMED_OLD_NAME:
       # Find corresponding new name event
-      for j in (i + 1) ..< dmonInst.events.len:
-        let checkEv = dmonInst.events[j].addr
+      for j in (i + 1) ..< events.len:
+        let checkEv = events[j].addr
         if checkEv.action == FILE_ACTION_RENAMED_NEW_NAME:
           watch.watchCb(
             checkEv.watchId,
@@ -99,7 +100,6 @@ proc processEvents() =
       )
     else: discard
 
-  dmonInst.events.setLen(0)
 
 template toSlice(buff: seq): openArray[byte] =
   buff.toOpenArray(0, buff.len())
@@ -176,7 +176,9 @@ proc processWatches() =
     elapsed = currentTime - startTime
 
     if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
-      processEvents()
+      if dmonInst.events.len() > 0:
+        processEvents(move dmonInst.events)
+      assert dmonInst.events.len() == 0
       elapsed = initDuration(seconds=0)
 
 proc monitorThread*() {.thread.} =
