@@ -183,8 +183,8 @@ proc processWatches() =
           offset += int(notify.NextEntryOffset)
 
         # TODO: what's this bit about?
-        # if not dmonInst.quit:
-        #   discard refreshWatch(watch)
+        if not dmonInst.quit:
+          discard refreshWatch(watch)
 
     var currentTime = getMonoTime()
     
