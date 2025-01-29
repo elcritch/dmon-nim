@@ -63,10 +63,11 @@ proc fsEventCallback(
     debug "fsEventCallback:events: ", dmonInst = dmonInst.addr.pointer.repr, events = dmonInst.events.repr
 
 proc processEvents(events: seq[FileEvent]) =
-  trace "processing processEvents ", eventsLen = events.len
+  debug "processEvents: processing ", eventsLen = events.len
 
   for i, ev in events:
     if ev.skip:
+      debug "processEvents:skip", ev= ev.repr
       continue
 
     # Coalesce multiple modify events
@@ -149,7 +150,8 @@ proc processWatches() =
 
     let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
     trace "CFRunLoopRunInMode result: ", res = res, events = dmonInst.events.repr
-    processEvents(move dmonInst.events)
+    if dmonInst.events.len() > 0:
+      processEvents(move dmonInst.events)
     assert dmonInst.events.len() == 0
 
 proc monitorThread*() {.thread.} =
