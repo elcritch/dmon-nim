@@ -194,12 +194,11 @@ proc processWatches() =
 
     var currentTime = getMonoTime()
     
-    startTime = currentTime
     elapsed = currentTime - startTime
+    startTime = currentTime
 
-    # trace "processWatches: elapsed", elapsed = elapsed, events = dmonInst.events.repr
-    # if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
-    block:
+    trace "processWatches: elapsed", elapsed = elapsed, events = dmonInst.events.repr
+    if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
       if dmonInst.events.len() > 0:
         processEvents(move dmonInst.events)
       assert dmonInst.events.len() == 0
