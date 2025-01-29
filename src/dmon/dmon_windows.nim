@@ -141,7 +141,6 @@ proc processWatches() =
     assert(waitResult != WAIT_FAILED)
 
     if waitResult != WAIT_TIMEOUT:
-      # var fileInfobufferSeq = newSeq[byte](64512)
       let watch = watchStatesArr[waitResult - WAIT_OBJECT_0]
       trace "processWatches: watchStatesArr", dirHandle = watch.dirHandle, overlapped = watch.overlapped, notifyFilter = watch.notifyFilter
 
@@ -161,7 +160,7 @@ proc processWatches() =
           debug "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
           let notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[0].addr)
           debug "processWatches:watch:notify: ", notify = notify.repr
-          debug "processWatches:watch:notify:seq: ", notify = watch.buffer[0..30].repr
+          debug "processWatches:watch:notify:seq: ", notify = $watch.buffer[0..30]
 
           let filepath = $(cast[ptr WCHAR](notify.FileName))
           let unixPath = nativeToUnixPath(filepath)
@@ -237,7 +236,6 @@ proc watch*(
       watch.overlapped.hEvent = CreateEvent(nil, TRUE, FALSE, nil)
       assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
 
-      var fileInfobufferSeq = newSeq[byte](64512)
       if not refreshWatch(watch):
         unwatchState(watch)
         error "ReadDirectoryChanges failed"
