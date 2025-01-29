@@ -109,6 +109,9 @@ proc processEvents(events: seq[FileEvent]) =
 template toSlice(buff: seq): openArray[byte] =
   buff.toOpenArray(0, buff.len())
 
+var
+  startTime = getMonoTime()
+
 proc processWatches() =
   trace "processWatches"
 
@@ -116,8 +119,6 @@ proc processWatches() =
     waitHandlesArr: array[64, HANDLE]
     watchStatesArr: array[64, WatchState]
     elapsed: Duration
-    startTime = getMonoTime()
-
 
   #   startTime: SYSTEMTIME
   #   elapsed: uint64
