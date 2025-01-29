@@ -141,7 +141,7 @@ proc processWatches() =
           offset: int
 
         if bytes == 0:
-          discard refreshWatch(watch, fileInfobufferSeq.toSlice())
+          discard refreshWatch(watch, fileInfobufferSeq)
           return
 
         while true:
@@ -220,7 +220,7 @@ proc watch*(
       assert(watch.overlapped.hEvent != INVALID_HANDLE_VALUE)
 
       var fileInfobufferSeq = newSeq[byte](64512)
-      if not refreshWatch(watch, fileInfobufferSeq.toSlice()):
+      if not refreshWatch(watch, fileInfobufferSeq):
         unwatchState(watch)
         error "ReadDirectoryChanges failed"
         # release(dmonInst.mutex)
