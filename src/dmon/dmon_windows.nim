@@ -164,14 +164,11 @@ proc processWatches() =
             NextEntryOffset= notify.NextEntryOffset,
             Action= notify.Action, FileNameLength= notify.FileNameLength,
             FileName= notify.FileName
-          let filenamePtr = cast[ptr WCHAR](notify.FileName[0].addr)
-          debug "processWatches:watch:notify: ", filenamePtr = filenamePtr
-
           # processWatches:watch:notify: tid=4740 notify="ptr FILE_NOTIFY_INFORMATION(NextEntryOffset: 0, Action: 1, FileNameLength: 16, FileName: [102])"
 
           debug "processWatches:watch:notify:seq: ", notify = $watch.buffer[0..30]
 
-          let filepath = $(cast[ptr WCHAR](notify.FileName))
+          let filepath = $cast[ptr WCHAR](notify.FileName[0].addr)
           let unixPath = nativeToUnixPath(filepath)
           trace "processWatches: converted filename", filepath = filepath, unixPath = unixPath, fileNameWin = notify.FileName
           
