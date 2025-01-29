@@ -32,10 +32,11 @@ proc unwatchState*(watch: var WatchState) =
   CloseHandle(watch.dirHandle)
 
 proc processEvents(events: seq[FileEvent]) =
-  trace "processEvents:", watchWd = watchWd, wd = wd
+  debug "processEvents:", events = events.repr
   for i in 0 ..< events.len:
     var ev = events[i].addr
     if ev.skip:
+      debug "processEvents:skip: ", ev = ev.repr
       continue
 
     if ev.action == FILE_ACTION_MODIFIED or ev.action == FILE_ACTION_ADDED:
@@ -50,12 +51,15 @@ proc processEvents(events: seq[FileEvent]) =
   for i in 0 ..< events.len:
     let ev = events[i].addr
     if ev.skip:
+      debug "processEvents:skip: ", ev = ev.repr
       continue
 
     let watch = dmonInst.watches[ev.watchId.uint32 - 1]
     if watch.isNil or watch.watchCb.isNil:
+      debug "processEvents:skip: watch nil: ", ev = ev.repr
       continue
 
+    debug "processEvents:event: ", ev = ev.repr
     case ev.action
     of FILE_ACTION_ADDED:
       watch.watchCb(
@@ -141,10 +145,12 @@ proc processWatches() =
           offset: int
 
         if bytes == 0:
+          debug "processWatches:refreshWatch:", watch = watch.repr
           discard refreshWatch(watch, fileInfobufferSeq)
           return
 
         while true:
+          debug "processWatches:watch:process: ", offset = offset, watch = watch.repr
           let notify = cast[ptr FILE_NOTIFY_INFORMATION](fileInfobufferSeq[0].addr)
 
           let filepath = $(cast[ptr WCHAR](notify.FileName))
