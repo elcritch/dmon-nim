@@ -47,7 +47,7 @@ jobs:
     - name: Install Deps
       run: |
         # new atlas workspace
-        nimble install --useSystemNim --deps --verbose
+        nimble install --useSystemNim -d --verbose
 
     - name: Build Tests
       run: |
