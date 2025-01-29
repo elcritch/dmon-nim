@@ -155,7 +155,7 @@ proc processWatches() =
           return
 
         while true:
-          debug "processWatches:watch:process: ", offset = offset, watch = watch.repr
+          debug "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
           let notify = cast[ptr FILE_NOTIFY_INFORMATION](fileInfobufferSeq[0].addr)
           debug "processWatches:watch:notify: ", notify = notify.repr
           debug "processWatches:watch:notify:seq: ", notify = fileInfobufferSeq[0..300].repr
