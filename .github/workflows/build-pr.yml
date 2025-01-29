@@ -36,10 +36,10 @@ jobs:
     - name: Install Nimble
       run: |
         # nimble install nimble@\#head
-        echo "Nim:: "
-        nim -v
         echo "Nimble:: "
         nimble -v
+        echo "Nim:: "
+        nim -v
 
     - name: Install Deps
       run: |
