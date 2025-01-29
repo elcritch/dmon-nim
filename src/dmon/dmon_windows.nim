@@ -123,7 +123,7 @@ proc processWatches() =
   # GetSystemTime(startTime.addr)
 
   withLock(dmonInst.threadLock):
-    trace "processWatches: watchStates"
+    trace "processWatches: watchStates", numWatches = dmonInst.numWatches
     for i in 0 ..< 64:
       if not dmonInst.watches[i].isNil:
         let watch = dmonInst.watches[i]
