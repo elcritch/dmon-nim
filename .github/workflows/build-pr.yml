@@ -21,11 +21,11 @@ jobs:
         nimble-version: '0.16.4' # default is 'latest'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-    # - uses: iffy/install-nim@v4
-    #   with:
-    #     version: ${{ matrix.nimversion }}
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: iffy/install-nim@v4
+      with:
+        version: ${{ matrix.nimversion }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # - name: Cache packages
     #   uses: actions/cache@v3
@@ -39,7 +39,7 @@ jobs:
         echo "Nimble:: "
         nimble -v
         echo "Nim:: "
-        nimble install nim@2.0.14
+        # nimble install nim@2.0.14
 
         nim -v
 
