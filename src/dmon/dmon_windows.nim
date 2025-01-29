@@ -12,7 +12,7 @@ import dmontypes
 
 # $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
 
-proc refreshWatch(watch: WatchState, buffer: openArray[byte]): bool =
+proc refreshWatch(watch: WatchState, buffer: var seq[byte]): bool =
   let recursive = watch.watchFlags.contains(Recursive)
   let res = ReadDirectoryChangesW(
     watch.dirHandle,
@@ -132,7 +132,8 @@ proc processWatches() =
     )
 
     if waitResult != WAIT_TIMEOUT:
-      var fileInfobufferSeq = newSeq[byte](64512)
+      # var fileInfobufferSeq = newSeq[byte](64512)
+      var fileInfobufferSeq = newSeq[byte](32768)
       let watch = watchStates[waitResult - WAIT_OBJECT_0]
       var bytes: DWORD = 0
       if GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE) != 0:
