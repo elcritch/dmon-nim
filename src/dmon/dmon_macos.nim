@@ -176,6 +176,7 @@ proc watch*(
 ): WatchId =
   ## Create Dmon watch using FSEvents stream
   let watch = watchInit(rootDir, watchCb, flags, userData)
+  notice "Watch:Created: ", watch = watch.repr
 
   withLock dmonInst.threadLock:
     let cfPath = CFStringCreateWithCString(
@@ -198,6 +199,7 @@ proc watch*(
     )
     let flags = {FileEvents, NoDefer}
     notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
+    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32 
     watch.fsEvStreamRef = FSEventStreamCreate(
       dmonInst.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function

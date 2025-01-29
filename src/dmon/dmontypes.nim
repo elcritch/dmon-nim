@@ -152,6 +152,8 @@ proc watchInit*(
     if not watch.rootDir.endsWith("/"):
       watch.rootDir.add "/"
 
+    when defined(macosx):
+      watch.rootdirUnmod = watch.rootdir
     watch.rootDir = watch.rootDir.toLowerAscii
 
     result = watch
