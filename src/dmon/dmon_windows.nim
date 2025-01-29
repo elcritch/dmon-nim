@@ -143,8 +143,9 @@ proc processWatches() =
       var fileInfobufferSeq = newSeq[byte](32768)
       let watch = watchStatesArr[waitResult - WAIT_OBJECT_0]
       var bytes: DWORD = 0
-      if GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE) != 0:
-        trace "processWatches:GetOverlappedResult", watch = watch.repr
+      let res = GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE)
+      if res != 0:
+        trace "processWatches:GetOverlappedResult", overlapRes = res, watch = watch.repr
         var 
           offset: int
 
