@@ -1,7 +1,6 @@
 import std/[locks, os, strutils]
 
-when defined(bsdTest) or defined(freebsd) or defined(openbsd) or
-    defined(netbsd) or defined(dragonfly):
+when defined(bsdTest) or defined(bsd):
   import std/times
 
 import logging
@@ -18,8 +17,7 @@ elif defined(linux):
 elif defined(windows) or defined(winTest):
   import winim/lean
 
-when defined(bsdTest) or defined(freebsd) or defined(openbsd) or
-    defined(netbsd) or defined(dragonfly):
+when defined(bsdTest) or defined(bsd):
   type
     BsdWatchEntry* = object
       filepath*: string
@@ -75,8 +73,7 @@ type
     watchCb*: WatchCallback
     userData*: pointer
     rootDir*: string
-    when defined(bsdTest) or defined(freebsd) or defined(openbsd) or
-        defined(netbsd) or defined(dragonfly):
+    when defined(bsdTest) or defined(bsd):
       entries*: seq[BsdWatchEntry]
       ready*: bool
     elif defined(macosx):

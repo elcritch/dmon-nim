@@ -1,5 +1,4 @@
-when defined(bsdTest) or defined(freebsd) or defined(openbsd) or
-    defined(netbsd) or defined(dragonfly):
+when defined(bsdTest) or defined(bsd):
   import std/[assertions, locks, os, tempfiles]
 
   import dmon

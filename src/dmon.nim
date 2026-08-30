@@ -11,7 +11,7 @@ elif defined(macosx):
 elif defined(linux):
   import dmon/dmon_linux
   export dmon_linux
-elif defined(freebsd) or defined(openbsd) or defined(netbsd) or defined(dragonfly):
+elif defined(bsd):
   import dmon/dmon_bsd
   export dmon_bsd
 elif defined(windows):
