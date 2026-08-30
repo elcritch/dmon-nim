@@ -188,10 +188,8 @@ proc processWatches() =
     
   withLock(dmonInst.threadLock):
     # Add all watch file descriptors to the set
-    for i in 0..<dmonInst.numWatches:
-      let watch = dmonInst.watches[i]
-      if watch != nil:
-        FD_SET(watch.fd.cint, readfds)
+    for watch in dmonInst.watchStates():
+      FD_SET(watch.fd.cint, readfds)
 
   var timeout: Timeval
   timeout.tv_sec = posix.Time(0)

@@ -58,4 +58,15 @@ jobs:
     - name: Build Tests
       run: |
         # nimble --useSystemNim test
-        nim c -r tests/testbasics.nim
+        nimble c -r tests/testbasics.nim
+
+    - name: Test BSD backend
+      if: runner.os == 'Linux'
+      run: nimble c -r -d:bsdTest tests/testbsd.nim
+
+    - name: Compile BSD targets
+      if: runner.os == 'Linux'
+      run: |
+        nimble c --compileOnly --os:freebsd src/dmon.nim
+        nimble c --compileOnly --os:openbsd src/dmon.nim
+        nimble c --compileOnly --os:netbsd src/dmon.nim

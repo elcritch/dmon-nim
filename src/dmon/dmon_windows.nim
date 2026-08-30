@@ -126,14 +126,18 @@ proc processWatches() =
 
   withLock(dmonInst.threadLock):
     trace "processWatches: watchStates", numWatches = dmonInst.numWatches
-    for i in 0 ..< 64:
-      if not dmonInst.watches[i].isNil:
-        let watch = dmonInst.watches[i]
-        watchStatesArr[i] = watch
-        waitHandlesArr[i] = watch.overlapped.hEvent
+    var activeCount = 0
+    for watch in dmonInst.watches:
+      if not watch.isNil:
+        watchStatesArr[activeCount] = watch
+        waitHandlesArr[activeCount] = watch.overlapped.hEvent
+        inc activeCount
+
+    if activeCount == 0:
+      return
 
     let waitResult = WaitForMultipleObjects(
-      DWORD(dmonInst.numWatches),
+      DWORD(activeCount),
       waitHandlesArr[0].addr,
       FALSE,
       10
