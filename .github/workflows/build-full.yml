@@ -8,9 +8,14 @@ on:
 
 jobs:
   tests:
+    name: tests (${{ matrix.os }}, Nim ${{ matrix.nimversion }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     strategy:
-      fail-fast: false      # This disables fast fail at the matrix level
+      fail-fast: false
       matrix:
         nimversion:
           - '2.0.14'
@@ -19,43 +24,43 @@ jobs:
           - macOS-latest
           - windows-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: nim-lang/setup-nimble-action@v1
+    - uses: actions/checkout@v5
+
+    - name: Install Nim
+      uses: jiro4989/setup-nim-action@v2
       with:
-        nimble-version: '0.16.4' # default is 'latest'
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        nim-version: ${{ matrix.nimversion }}
 
-    - uses: iffy/install-nim@v4
+    - name: Install Atlas
+      run: |
+        mkdir -p "$HOME/.local/bin"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        curl -fsSL https://raw.githubusercontent.com/nim-lang/atlas/HEAD/install.sh | \
+          ATLAS_INSTALL_DIR="$HOME/.local/bin" bash -
+        atlas -v
+
+    - name: Cache dependencies
+      uses: actions/cache@v4
       with:
-        version: ${{ matrix.nimversion }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        path: deps/
+        key: ${{ runner.os }}-nim${{ matrix.nimversion }}-${{ hashFiles('dmon.nimble') }}
 
-    - name: Cache packages
-      uses: actions/cache@v3
-      with:
-        path: ~/.nimble
-        key: ${{ runner.os }}-${{ hashFiles('sigils.nimble') }}
+    - name: Install dependencies
+      run: atlas install
 
-    - name: Install Nimble
+    - name: Run tests
+      run: atlas-run tests
+
+    - name: Run tests without logging
+      run: atlas-run tests -- -d:noLogging
+
+    - name: Test BSD backend
+      if: runner.os == 'Linux'
+      run: atlas-run tests testbsd.nim -- -d:bsdTest
+
+    - name: Compile BSD targets
+      if: runner.os == 'Linux'
       run: |
-        # nimble install nimble@\#head
-        echo "Nimble:: "
-        nimble -v
-        echo "Nim:: "
-        # nimble install nim@2.0.14
-        nim -v
-        echo "UNAME: "
-        uname -a
-        echo ARCH:
-        arch
-
-    - name: Install Deps
-      run: |
-        # new atlas workspace
-        nimble install --useSystemNim -d --verbose
-
-    - name: Build Tests
-      run: |
-        # nimble --useSystemNim test
-        nim c -r tests/testbasics.nim
+        nim c --compileOnly --os:freebsd src/dmon.nim
+        nim c --compileOnly --os:openbsd src/dmon.nim
+        nim c --compileOnly --os:netbsd src/dmon.nim

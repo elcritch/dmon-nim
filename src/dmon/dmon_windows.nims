@@ -1,6 +1,3 @@
-
---define:dmonEnableChronicles
-
 when defined(linux):
   --os:windows
   --cpu:amd64

@@ -1,13 +1,13 @@
-import std/os
-import std/strutils
-import std/locks
-import std/strutils
-import std/private/globs
-import std/[os, paths]
+import std/[locks, os, strutils]
+
+when defined(bsdTest) or defined(bsd):
+  import std/times
 
 import logging
 
-when defined(macosx):
+when defined(bsdTest):
+  discard
+elif defined(macosx):
   import macosutils/cfcore
   import macosutils/fsstream
 elif defined(linux):
@@ -16,6 +16,17 @@ elif defined(linux):
       rootDir*: string
 elif defined(windows) or defined(winTest):
   import winim/lean
+
+when defined(bsdTest) or defined(bsd):
+  type
+    BsdWatchEntry* = object
+      filepath*: string
+      deviceId*: DeviceId
+      fileId*: FileId
+      kind*: PathComponent
+      size*: BiggestInt
+      permissions*: set[FilePermission]
+      lastWriteTime*: Time
 
 type
   WatchId* = distinct uint32
@@ -43,7 +54,9 @@ type
     watchId*: WatchId
     filepath*: string
     skip*: bool
-    when defined(macosx):
+    when defined(bsdTest):
+      discard
+    elif defined(macosx):
       eventId*: FSEventStreamEventId
       eventFlags*: set[FSEventStreamEventFlag]
       moveValid*: bool
@@ -60,7 +73,10 @@ type
     watchCb*: WatchCallback
     userData*: pointer
     rootDir*: string
-    when defined(macosx):
+    when defined(bsdTest) or defined(bsd):
+      entries*: seq[BsdWatchEntry]
+      ready*: bool
+    elif defined(macosx):
       fsEvStreamRef*: FSEventStreamRef
       init*: bool
       rootDirUnmod*: string
@@ -85,7 +101,7 @@ type
     threadLock*: Lock
     threadSem*: Cond
     quit*: bool
-    when defined(macosx) and not defined(winTest):
+    when defined(macosx) and not defined(winTest) and not defined(bsdTest):
       cfLoopRef*: CFRunLoopRef
       cfAllocRef*: CFAllocatorRef
 
@@ -93,8 +109,9 @@ var
   dmonInst*: DmonState
 
 iterator watchStates*(dm: DmonState): WatchState =
-  for i in 0 ..< dm.numWatches:
-    yield dm.watches[i]
+  for watch in dm.watches:
+    if watch != nil:
+      yield watch
 
 proc watchInit*(
     rootDir: string,
@@ -153,9 +170,9 @@ proc watchInit*(
     if not watch.rootDir.endsWith("/"):
       watch.rootDir.add "/"
 
-    when defined(macosx):
+    when defined(macosx) and not defined(bsdTest):
       watch.rootdirUnmod = watch.rootdir
-    watch.rootDir = watch.rootDir.toLowerAscii
+      watch.rootDir = watch.rootDir.toLowerAscii
 
     result = watch
  
@@ -233,7 +250,7 @@ template deinitDmon*() =
   deinitCond(dmonInst.threadSem)
   deinitLock(dmonInst.threadLock)
 
-  for i in 0 ..< dmonInst.numWatches:
+  for i in 0..<dmonInst.watches.len:
     if dmonInst.watches[i] != nil:
       unwatchState(dmonInst.watches[i])
 

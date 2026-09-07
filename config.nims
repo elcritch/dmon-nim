@@ -1,13 +1,10 @@
 
-# --define:dmonEnableChronicles
-# --define:"chronicles_sinks:textlines"
-# --define:"chronicles_indent:2"
-# --define:"chronicles_timestamps:NoTimestamps"
-# --define:"chronicles_log_level:TRACE"
+# --define:"chroniclersLogBackend:std"
+# --define:"chroniclersLogBackend:chronicles"
+# --define:"chroniclersLogBackend:none"
 
 
 when defined(windowsXC):
-  # --os:dmonEnableChronicles
   --os:windows
   --cpu:amd64
   --gcc.exe:"x86_64-w64-mingw32-gcc"
@@ -17,4 +14,3 @@ when defined(windowsXC):
   --clang.options.linker:""
   --clang.cpp.options.linker:""
   --tcc.options.linker:""
-
