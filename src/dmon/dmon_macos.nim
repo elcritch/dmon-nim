@@ -143,8 +143,12 @@ proc processWatches() =
   withLock(dmonInst.threadLock):
     for watch in dmonInst.watchStates():
       if not watch.init:
+        # watchInit publishes the slot before watch() reacquires this mutex to
+        # construct its FSEvents stream. The monitor can run between those two
+        # critical sections, so leave an unprepared slot for the next pass.
+        if watch.fsEvStreamRef.pointer.isNil:
+          continue
         info "initialize watch ", watch = watch.repr
-        assert(not watch.fsEvStreamRef.pointer.isNil)
         FSEventStreamScheduleWithRunLoop(
           watch.fsEvStreamRef, dmonInst.cfLoopRef, kCFRunLoopDefaultMode
         )
