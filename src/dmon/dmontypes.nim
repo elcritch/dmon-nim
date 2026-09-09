@@ -79,6 +79,9 @@ type
     elif defined(macosx):
       fsEvStreamRef*: FSEventStreamRef
       init*: bool
+        ## Whether the monitor thread attempted to start this stream.
+      started*: bool
+        ## Whether FSEvents accepted the stream registration.
       rootDirUnmod*: string
     elif defined(linux) and not defined(winTest):
       fd*: FileHandle
@@ -175,7 +178,7 @@ proc watchInit*(
       watch.rootDir = watch.rootDir.toLowerAscii
 
     result = watch
- 
+
   notice "watchDmon: done"
 
 template threadExec*() =
@@ -197,7 +200,8 @@ template threadExec*() =
     os.sleep(100)
 
 
-proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (watch: var WatchState) {.nimcall.}) =
+proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (
+    watch: var WatchState) {.nimcall.}) =
   assert(dmonInst.initialized)
   assert(uint32(id) > 0)
 
@@ -238,7 +242,7 @@ template startDmonThread*() =
 
   for i in 0 ..< 64:
     dmonInst.freeList[i] = 64 - i - 1
-  
+
   dmonInst.initialized = true
 
 template deinitDmon*() =

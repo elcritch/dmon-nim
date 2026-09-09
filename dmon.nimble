@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.5.0"
+version       = "0.5.1"
 author        = "Jaremy Creechley"
 description   = "Library to monitor file changes in a folder. A port of Dmon."
 license       = "BSD-2-Clause"
@@ -16,4 +16,3 @@ requires "chroniclers >= 0.2.0"
 
 feature "dev":
   requires "chronicles >= 0.10.0"
-

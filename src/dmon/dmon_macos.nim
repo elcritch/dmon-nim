@@ -27,12 +27,13 @@ proc fsEventCallback(
   let watchId = cast[WatchId](userData)
   assert(uint32(watchId) > 0)
 
-  debug "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int, streamRef = streamRef.pointer.repr
+  debug "fsEventCallback: ", numEvents = numEvents, watchId = watchId.int,
+      streamRef = streamRef.pointer.repr
   let eventFlags = cast[ptr UncheckedArray[set[FSEventStreamEventFlag]]](eventFlags)
   let eventIds = cast[ptr UncheckedArray[FSEventStreamEventId]](eventFlags)
 
   let watch = dmonInst.watches[uint32(watchId) - 1]
-  # we set 
+  # we set
   let paths = cast[cstringArray](eventPaths)
 
   for i in 0 ..< numEvents:
@@ -50,7 +51,8 @@ proc fsEventCallback(
     let watchRoot = watch.rootDir.toLowerAscii
 
     if not absPath.isRelativeTo(watchRoot):
-      debug "fsEventCallback:event:skipping ", absPath = absPath, watchRoot = watchRoot
+      debug "fsEventCallback:event:skipping ", absPath = absPath,
+          watchRoot = watchRoot
       continue
 
     ev.filepath = absPath.relativePath(watchRoot)
@@ -60,14 +62,15 @@ proc fsEventCallback(
 
     debug "fsEventCallback:event:adding: ", ev = ev.repr
     dmonInst.events.add(ev)
-    debug "fsEventCallback:events: ", dmonInst = dmonInst.addr.pointer.repr, events = dmonInst.events.repr
+    debug "fsEventCallback:events: ", dmonInst = dmonInst.addr.pointer.repr,
+        events = dmonInst.events.repr
 
 proc processEvents(events: seq[FileEvent]) =
   debug "processEvents: processing ", eventsLen = events.len
 
   for i, ev in events:
     if ev.skip:
-      debug "processEvents:skip", ev= ev.repr
+      debug "processEvents:skip", ev = ev.repr
       continue
 
     # Coalesce multiple modify events
@@ -126,7 +129,8 @@ proc processEvents(events: seq[FileEvent]) =
         let checkEv = addr events[j]
         if checkEv.eventFlags.contains(ItemRenamed):
           watch.watchCb(
-            checkEv.watchId, Move, watch.rootDirUnmod, checkEv.filepath, ev.filepath,
+            checkEv.watchId, Move, watch.rootDirUnmod, checkEv.filepath,
+            ev.filepath,
             watch.userData,
           )
           break
@@ -139,17 +143,23 @@ proc processWatches() =
   withLock(dmonInst.threadLock):
     for watch in dmonInst.watchStates():
       if not watch.init:
+        # watchInit publishes the slot before watch() reacquires this mutex to
+        # construct its FSEvents stream. The monitor can run between those two
+        # critical sections, so leave an unprepared slot for the next pass.
+        if watch.fsEvStreamRef.pointer.isNil:
+          continue
         info "initialize watch ", watch = watch.repr
-        assert(not watch.fsEvStreamRef.pointer.isNil)
         FSEventStreamScheduleWithRunLoop(
           watch.fsEvStreamRef, dmonInst.cfLoopRef, kCFRunLoopDefaultMode
         )
         let sres = FSEventStreamStart(watch.fsEvStreamRef)
         debug "initialized watch ", sres = sres.repr
+        watch.started = sres
         watch.init = true
 
     let res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false)
-    trace "CFRunLoopRunInMode result: ", res = res, events = dmonInst.events.repr
+    trace "CFRunLoopRunInMode result: ", res = res,
+        events = dmonInst.events.repr
     if dmonInst.events.len() > 0:
       processEvents(move dmonInst.events)
     assert dmonInst.events.len() == 0
@@ -202,8 +212,9 @@ proc watch*(
       copyDescription: nil,
     )
     let flags = {FileEvents, NoDefer}
-    notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags, fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
-    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32 
+    notice "FSEventStreamCreate: ", cfPaths = cfPaths.repr, flags = flags,
+        fileevents = cast[uint]({FSEventStreamCreateFlag.FileEvents})
+    assert cast[uint64]({FSEventStreamCreateFlag.FileEvents}) == 0x00000010'u32
     watch.fsEvStreamRef = FSEventStreamCreate(
       dmonInst.cfAllocRef, # Use default allocator
       fsEventCallback, # Callback function
@@ -228,4 +239,3 @@ proc watch*(
 proc initDmonImpl*() =
   dmonInst.cfAllocRef = createBasicDefaultCFAllocator()
   info "initDmonImpl: ", cfAllocRef = dmonInst.cfAllocRef.repr
-

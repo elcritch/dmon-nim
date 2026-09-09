@@ -23,6 +23,16 @@ proc waitForSecondWatch(): bool =
         return true
     sleep(100)
 
+when defined(macosx):
+  proc waitForStarted(watchId: WatchId): bool =
+    for _ in 0 ..< 30:
+      withLock(dmonInst.threadLock):
+        let index = int(uint32(watchId)) - 1
+        if index >= 0 and index < dmonInst.watches.len and
+            not dmonInst.watches[index].isNil and dmonInst.watches[index].init:
+          return dmonInst.watches[index].started
+      sleep(100)
+
 block removingEarlierWatchKeepsLaterWatchActive:
   let firstDir = createTempDir("dmon-first-watch-", "")
   let secondDir = createTempDir("dmon-second-watch-", "")
@@ -38,6 +48,10 @@ block removingEarlierWatchKeepsLaterWatchActive:
     secondWatch = watch(secondDir, callback, {}, nil)
     doAssert uint32(firstWatch) > 0, "first watch should have a valid ID"
     doAssert uint32(secondWatch) > 0, "second watch should have a valid ID"
+
+    when defined(macosx):
+      doAssert waitForStarted(firstWatch), "first FSEvents stream should start"
+      doAssert waitForStarted(secondWatch), "second FSEvents stream should start"
 
     sleep(700)
     firstWatch.unwatch()
