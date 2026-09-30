@@ -10,6 +10,10 @@ import winim/winstr
 import logging
 import dmontypes
 
+static:
+  doAssert dmonMaxWatches <= int(MAXIMUM_WAIT_OBJECTS),
+    "dmonMaxWatches cannot exceed MAXIMUM_WAIT_OBJECTS (64) on Windows"
+
 # $ nim --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc -d:release c hello.nim
 
 proc refreshWatch(watch: WatchState): bool =
@@ -55,7 +59,7 @@ proc processEvents(events: seq[FileEvent]) =
       trace "processEvents:skip: ", ev = ev.repr
       continue
 
-    let watch = dmonInst.watches[ev.watchId.uint32 - 1]
+    let watch {.cursor.} = dmonInst.watches[ev.watchId.uint32 - 1]
     if watch.isNil or watch.watchCb.isNil:
       trace "processEvents:skip: watch nil: ", ev = ev.repr
       continue
@@ -115,9 +119,9 @@ var
 proc processWatches() =
   trace "processWatches"
 
-  var 
-    waitHandlesArr: array[64, HANDLE]
-    watchStatesArr: array[64, WatchState]
+  var
+    waitHandlesArr: array[dmonMaxWatches, HANDLE]
+    watchIdsArr: array[dmonMaxWatches, WatchId]
     elapsed: Duration
 
   #   startTime: SYSTEMTIME
@@ -127,9 +131,9 @@ proc processWatches() =
   withLock(dmonInst.threadLock):
     trace "processWatches: watchStates", numWatches = dmonInst.numWatches
     var activeCount = 0
-    for watch in dmonInst.watches:
+    for watch in dmonInst.watchStates():
       if not watch.isNil:
-        watchStatesArr[activeCount] = watch
+        watchIdsArr[activeCount] = watch.id
         waitHandlesArr[activeCount] = watch.overlapped.hEvent
         inc activeCount
 
@@ -142,18 +146,23 @@ proc processWatches() =
       FALSE,
       10
     )
-    trace "processWatches: watchStates", waitResult = waitResult.repr, waitTimeout = WAIT_TIMEOUT, waitFailed = WAIT_FAILED
+    trace "processWatches: watchStates", waitResult = waitResult.repr,
+        waitTimeout = WAIT_TIMEOUT, waitFailed = WAIT_FAILED
     assert(waitResult != WAIT_FAILED)
 
     if waitResult != WAIT_TIMEOUT:
-      let watch = watchStatesArr[waitResult - WAIT_OBJECT_0]
-      trace "processWatches: watchStatesArr", dirHandle = watch.dirHandle, overlapped = watch.overlapped, notifyFilter = watch.notifyFilter
+      let watchId = watchIdsArr[waitResult - WAIT_OBJECT_0]
+      let watch {.cursor.} = dmonInst.watches[uint32(watchId) - 1]
+      trace "processWatches: watchStatesArr", dirHandle = watch.dirHandle,
+          overlapped = watch.overlapped, notifyFilter = watch.notifyFilter
 
       var bytes: DWORD = 0
-      let res = GetOverlappedResult(watch.dirHandle, watch.overlapped.addr, bytes.addr, FALSE)
+      let res = GetOverlappedResult(watch.dirHandle, watch.overlapped.addr,
+          bytes.addr, FALSE)
       if res != 0:
-        trace "processWatches:GetOverlappedResult", overlapRes = res, watch = watch.repr
-        var 
+        trace "processWatches:GetOverlappedResult", overlapRes = res,
+            watch = watch.repr
+        var
           offset: int
 
         if bytes == 0:
@@ -162,21 +171,23 @@ proc processWatches() =
           return
 
         while true:
-          trace "processWatches:watch:process: ", offset = offset, bytes = bytes, watch = watch.repr
+          trace "processWatches:watch:process: ", offset = offset,
+              bytes = bytes, watch = watch.repr
           let notify = cast[ptr FILE_NOTIFY_INFORMATION](watch.buffer[0].addr)
           trace "processWatches:watch:notify: ",
-            NextEntryOffset= notify.NextEntryOffset,
-            Action= notify.Action, FileNameLength= notify.FileNameLength,
-            FileName= notify.FileName
+            NextEntryOffset = notify.NextEntryOffset,
+            Action = notify.Action, FileNameLength = notify.FileNameLength,
+            FileName = notify.FileName
 
           trace "processWatches:watch:notify:seq: ", notify = $watch.buffer[0..30]
 
           let filepath = $cast[ptr WCHAR](notify.FileName[0].addr)
           let unixPath = nativeToUnixPath(filepath)
-          trace "processWatches: converted filename", filepath = filepath, unixPath = unixPath, fileNameWin = notify.FileName
-          
+          trace "processWatches: converted filename", filepath = filepath,
+              unixPath = unixPath, fileNameWin = notify.FileName
+
           if dmonInst.events.len == 0:
-            elapsed = initDuration(seconds=0)
+            elapsed = initDuration(seconds = 0)
 
           var wev = FileEvent(
             action: notify.Action,
@@ -195,21 +206,22 @@ proc processWatches() =
           discard refreshWatch(watch)
 
     var currentTime = getMonoTime()
-    
+
     elapsed = currentTime - startTime
     startTime = currentTime
 
-    trace "processWatches: elapsed", elapsed = elapsed, events = dmonInst.events.repr
+    trace "processWatches: elapsed", elapsed = elapsed,
+        events = dmonInst.events.repr
     if elapsed.inMicroseconds > 100 and dmonInst.events.len > 0:
       if dmonInst.events.len() > 0:
         processEvents(move dmonInst.events)
       assert dmonInst.events.len() == 0
-      elapsed = initDuration(seconds=0)
+      elapsed = initDuration(seconds = 0)
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
-    
+
     threadExec()
 
 proc initDmonImpl*() =
@@ -224,7 +236,7 @@ proc watch*(
 
   withLock dmonInst.threadLock:
     var watch = watchInit(rootDirectory, watchCb, flags, userData)
-    
+
     let rootWS: LPCSTR = watch.rootDir
     watch.dirHandle = CreateFileA(
       rootWS,
@@ -239,7 +251,7 @@ proc watch*(
     if watch.dirHandle != INVALID_HANDLE_VALUE:
       watch.notifyFilter = FILE_NOTIFY_CHANGE_CREATION or
                           FILE_NOTIFY_CHANGE_LAST_WRITE or
-                          FILE_NOTIFY_CHANGE_FILE_NAME or 
+                          FILE_NOTIFY_CHANGE_FILE_NAME or
                           FILE_NOTIFY_CHANGE_DIR_NAME or
                           FILE_NOTIFY_CHANGE_SIZE
 

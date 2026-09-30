@@ -54,9 +54,18 @@ jobs:
     - name: Run tests without logging
       run: atlas-run tests -- -d:noLogging
 
+    - name: Test custom watch capacities
+      run: |
+        atlas-run tests testcapacity.nim -- -d:dmonMaxWatches=8
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          atlas-run tests testcapacity.nim -- -d:dmonMaxWatches=96
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          atlas-run tests testcapacity.nim -- -d:dmonMaxWatches=128
+        fi
+
     - name: Test BSD backend
       if: runner.os == 'Linux'
-      run: atlas-run tests testbsd.nim -- -d:bsdTest
+      run: atlas-run tests testbsd.nim testcapacity.nim -- -d:bsdTest -d:dmonMaxWatches=128
 
     - name: Compile BSD targets
       if: runner.os == 'Linux'
