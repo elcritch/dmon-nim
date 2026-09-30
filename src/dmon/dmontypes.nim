@@ -28,6 +28,15 @@ when defined(bsdTest) or defined(bsd):
       permissions*: set[FilePermission]
       lastWriteTime*: Time
 
+const dmonMaxWatches* {.intdefine.} = 64
+  ## Maximum simultaneous watches in one process. Override at compile time
+  ## with `-d:dmonMaxWatches=256`. Windows supports at most 64 watches.
+
+static:
+  doAssert dmonMaxWatches > 0, "dmonMaxWatches must be positive"
+  doAssert uint64(dmonMaxWatches) <= uint64(high(uint32)),
+    "dmonMaxWatches must fit in a WatchId"
+
 type
   WatchId* = distinct uint32
 
@@ -96,8 +105,8 @@ type
 
   DmonState* = object
     initialized*: bool
-    watches*: array[64, WatchState]
-    freeList*: array[64, int]
+    watches*: array[dmonMaxWatches, WatchState]
+    freeList*: array[dmonMaxWatches, int]
     events*: seq[FileEvent]
     numWatches*: int
     threadHandle*: Thread[void]
@@ -111,7 +120,7 @@ type
 var
   dmonInst*: DmonState
 
-iterator watchStates*(dm: DmonState): WatchState =
+iterator watchStates*(dm: DmonState): lent WatchState =
   for watch in dm.watches:
     if watch != nil:
       yield watch
@@ -132,11 +141,10 @@ proc watchInit*(
 
   withLock dmonInst.threadLock:
     notice "setting up watches"
-    assert(dmonInst.numWatches < 64)
-    if dmonInst.numWatches >= 64:
+    if dmonInst.numWatches >= dmonInst.watches.len:
       raise newException(ValueError, "Exceeding maximum number of watches")
 
-    let numFreeList = 64 - dmonInst.numWatches
+    let numFreeList = dmonInst.freeList.len - dmonInst.numWatches
     let index = dmonInst.freeList[numFreeList - 1]
     let id = uint32(index + 1)
 
@@ -206,7 +214,7 @@ proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (
   assert(uint32(id) > 0)
 
   let index = int(uint32(id) - 1)
-  assert(index < 64)
+  assert(index < dmonInst.watches.len)
   assert(dmonInst.watches[index] != nil)
   assert(dmonInst.numWatches > 0)
 
@@ -217,7 +225,7 @@ proc unwatchImpl*(id: WatchId, unwatchStateProc: proc (
       dmonInst.watches[index] = nil
 
       dec dmonInst.numWatches
-      let numFreeList = 64 - dmonInst.numWatches
+      let numFreeList = dmonInst.freeList.len - dmonInst.numWatches
       dmonInst.freeList[numFreeList - 1] = index
 
   notice "unwatch done"
@@ -240,8 +248,8 @@ template startDmonThread*() =
   withLock(dmonInst.threadLock):
     wait(dmonInst.threadSem, dmonInst.threadLock)
 
-  for i in 0 ..< 64:
-    dmonInst.freeList[i] = 64 - i - 1
+  for i in 0 ..< dmonInst.freeList.len:
+    dmonInst.freeList[i] = dmonInst.freeList.len - i - 1
 
   dmonInst.initialized = true
 

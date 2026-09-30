@@ -1,7 +1,6 @@
 import std/posix
 import std/[os, strutils, paths]
 import std/monotimes
-import std/sequtils
 import std/times
 import std/locks
 import std/inotify
@@ -11,10 +10,12 @@ import logging
 import dmontypes
 
 const LINUX_PATH_MAX = 4096
-let path_max_sys {.importc, extern: "PATH_MAX", header: "#include <linux/limits.h>".}: cint
+let path_max_sys {.importc, extern: "PATH_MAX",
+    header: "#include <linux/limits.h>".}: cint
 
 proc watchRecursive(
-    watch: WatchState, dirname: string, fd: FileHandle, mask: uint32, followLinks: bool
+    watch: WatchState, dirname: string, fd: FileHandle, mask: uint32,
+        followLinks: bool
 ) =
   for kind, path in walkDir(dirname):
     var entryValid = false
@@ -63,10 +64,12 @@ proc processEvents(events: seq[FileEvent]) =
       # Coalesce multiple MODIFY events
       for j in (i+1)..<events.len:
         let checkEv = events[j]
-        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath ==
+            checkEv.filePath:
           ev.skip = true
           break
-        elif (ev.mask and IN_ISDIR) != 0 and (checkEv.mask and (IN_ISDIR or IN_MODIFY)) != 0:
+        elif (ev.mask and IN_ISDIR) != 0 and (checkEv.mask and (IN_ISDIR or
+            IN_MODIFY)) != 0:
           # Handle directory modifications
           let evPath = ev.filePath.strip(trailing = true, chars = {'/'})
           let checkPath = checkEv.filePath.strip(trailing = true, chars = {'/'})
@@ -79,18 +82,21 @@ proc processEvents(events: seq[FileEvent]) =
       block outer:
         for j in (i+1)..<events.len:
           let checkEv = events[j]
-          if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.filePath == checkEv.filePath:
+          if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.filePath ==
+              checkEv.filePath:
             # Look for matching MOVED_TO event
             for k in (j+1)..<events.len:
               let thirdEv = events[k]
-              if (thirdEv.mask and IN_MOVED_TO) != 0 and checkEv.cookie == thirdEv.cookie:
+              if (thirdEv.mask and IN_MOVED_TO) != 0 and checkEv.cookie ==
+                  thirdEv.cookie:
                 thirdEv.mask = IN_MODIFY
                 ev.skip = true
                 checkEv.skip = true
                 break outer
-          elif (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+          elif (checkEv.mask and IN_MODIFY) != 0 and ev.filePath ==
+              checkEv.filePath:
             checkEv.skip = true
-            
+
     # Handle MOVED_FROM events
     elif (ev.mask and IN_MOVED_FROM) != 0:
       var moveValid = false
@@ -107,7 +113,8 @@ proc processEvents(events: seq[FileEvent]) =
       var moveValid = false
       for j in 0..<i:
         let checkEv = events[j]
-        if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.cookie == checkEv.cookie:
+        if (checkEv.mask and IN_MOVED_FROM) != 0 and ev.cookie ==
+            checkEv.cookie:
           moveValid = true
           break
       if not moveValid:
@@ -117,7 +124,8 @@ proc processEvents(events: seq[FileEvent]) =
     elif (ev.mask and IN_DELETE) != 0:
       for j in (i+1)..<events.len:
         let checkEv = events[j]
-        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath == checkEv.filePath:
+        if (checkEv.mask and IN_MODIFY) != 0 and ev.filePath ==
+            checkEv.filePath:
           checkEv.skip = true
           break
 
@@ -128,20 +136,23 @@ proc processEvents(events: seq[FileEvent]) =
       trace "skipping event: ", i = i, ev = ev.repr
       continue
 
-    let watch = dmonInst.watches[uint32(ev.watchId) - 1]
+    let watch {.cursor.} = dmonInst.watches[uint32(ev.watchId) - 1]
     if watch == nil or watch.watchCb == nil:
       continue
 
     let relFilePath = ev.filePath.relativePath(watch.rootDir)
     template callWatchCb(watch, kind: typed; origDir = relFilePath) =
-      watch.watchCb(watch.id, kind, watch.rootDir, relFilePath, origDir, watch.userData)
+      watch.watchCb(watch.id, kind, watch.rootDir, relFilePath, origDir,
+          watch.userData)
 
     if (ev.mask and IN_CREATE) != 0:
       if (ev.mask and IN_ISDIR) != 0 and Recursive in watch.watchFlags:
         var watchDir = watch.rootDir & ev.filePath & "/"
-        let inotifyMask = IN_MOVED_TO or IN_CREATE or IN_MOVED_FROM or IN_DELETE or IN_MODIFY
-        
-        let wd = inotify_add_watch(watch.fd.cint, watchDir.cstring, inotifyMask.cuint)
+        let inotifyMask = IN_MOVED_TO or IN_CREATE or IN_MOVED_FROM or
+            IN_DELETE or IN_MODIFY
+
+        let wd = inotify_add_watch(watch.fd.cint, watchDir.cstring,
+            inotifyMask.cuint)
         assert wd != -1
 
         var subdir = WatchSubdir(rootDir: watchDir)
@@ -185,7 +196,7 @@ proc processWatches() =
   # var buffer: array[1024, (InotifyEvent, array[LINUX_PATH_MAX, char])]
   var readfds: TFdSet
   FD_ZERO(readfds)
-    
+
   withLock(dmonInst.threadLock):
     # Add all watch file descriptors to the set
     for watch in dmonInst.watchStates():
@@ -195,23 +206,22 @@ proc processWatches() =
   timeout.tv_sec = posix.Time(0)
   timeout.tv_usec = Suseconds(10_000) # 100ms timeout
 
-  if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) <= 0:
+  # A timeout must still flush events queued during the coalescing interval.
+  if select(FD_SETSIZE, addr readfds, nil, nil, addr timeout) < 0:
     return
 
   # var starttm = getMonoTime()
-  var watches: seq[WatchState]
+  # Borrow records under the lifecycle lock; a copied sequence of references
+  # crosses ORC thread heaps and races with unwatch closing their descriptors.
   withLock(dmonInst.threadLock):
-    watches = dmonInst.watchStates().toSeq()
-
-  block:
     trace "monitor: select readfds "
-    for watch in watches:
-      trace "process watch ", watch = watch.repr
-      assert watch != nil
-      if FD_ISSET(watch.fd.cint, readfds) != 0:
+    for index in 0 ..< dmonInst.watches.len:
+      let watch {.cursor.} = dmonInst.watches[index]
+      if not watch.isNil and FD_ISSET(watch.fd.cint, readfds) != 0:
+        trace "process watch ", watch = watch.repr
         trace "inotify isset: ", watchFd = watch.fd
 
-        var events: array[MaxWatches, byte]  # event buffer
+        var events: array[MaxWatches, byte] # event buffer
         block:
           # if not dmonInst.quit:
           let n = read(watch.fd, addr events, MaxWatches)
@@ -223,7 +233,7 @@ proc processWatches() =
           for iev in inotify_events(addr events, n):
             let watchId = iev[].wd
             let mask = iev[].mask
-            let name = $cast[cstring](addr iev[].name)    # echo watch id, mask, and name value of each event
+            let name = $cast[cstring](addr iev[].name) # echo watch id, mask, and name value of each event
             let subdir = watch.findSubdir(watchId)
             trace "processWatches: inotify events: post",
               watchId = watchId, mask = mask, name = name, subdir = subdir
@@ -250,7 +260,7 @@ proc processWatches() =
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
     notice "starting thread"
-    
+
     threadExec()
 
 proc unwatchState*(watch: var WatchState) =
@@ -276,7 +286,8 @@ proc watch*(
 
     let inotifyMask =
       IN_MOVED_TO or IN_CREATE or IN_MOVED_FROM or IN_DELETE or IN_MODIFY
-    let wd = inotify_add_watch(watch.fd.cint, watch.rootDir.cstring, inotifyMask.cuint)
+    let wd = inotify_add_watch(watch.fd.cint, watch.rootDir.cstring,
+        inotifyMask.cuint)
 
     if wd < 0:
       return WatchId(0)

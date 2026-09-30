@@ -32,7 +32,7 @@ proc fsEventCallback(
   let eventFlags = cast[ptr UncheckedArray[set[FSEventStreamEventFlag]]](eventFlags)
   let eventIds = cast[ptr UncheckedArray[FSEventStreamEventId]](eventFlags)
 
-  let watch = dmonInst.watches[uint32(watchId) - 1]
+  let watch {.cursor.} = dmonInst.watches[uint32(watchId) - 1]
   # we set
   let paths = cast[cstringArray](eventPaths)
 
@@ -97,7 +97,7 @@ proc processEvents(events: seq[FileEvent]) =
       # // decide CREATE if file exists
       if not ev.moveValid:
         ev.eventFlags.excl ItemRenamed
-        let watch = dmonInst.watches[ev.watchId.uint32 - 1]
+        let watch {.cursor.} = dmonInst.watches[ev.watchId.uint32 - 1]
         let absPath = watch.rootDir / ev.filepath
 
         if not fileExists(absPath):
@@ -111,7 +111,7 @@ proc processEvents(events: seq[FileEvent]) =
       trace "skipping event: ", i = i, ev = ev.repr
       continue
 
-    let watch = dmonInst.watches[uint32(ev.watchId) - 1]
+    let watch {.cursor.} = dmonInst.watches[uint32(ev.watchId) - 1]
     if watch == nil or watch.watchCb == nil:
       continue
 

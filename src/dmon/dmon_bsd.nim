@@ -14,7 +14,8 @@ func wasModified(a, b: BsdWatchEntry): bool =
     (a.size != b.size or a.permissions != b.permissions or
       a.lastWriteTime != b.lastWriteTime)
 
-proc toEntry(filepath, absolutePath: string, followSymlink: bool): BsdWatchEntry =
+proc toEntry(filepath, absolutePath: string,
+    followSymlink: bool): BsdWatchEntry =
   let info = getFileInfo(absolutePath, followSymlink)
   result = BsdWatchEntry(
     filepath: filepath,
@@ -127,14 +128,13 @@ proc processWatch(watch: WatchState) =
   watch.entries = current
 
 proc processWatches() =
-  var watches: seq[WatchState]
+  # Borrow records under the lifecycle lock instead of copying ORC references
+  # into the monitor thread's heap. Unwatch must wait until a scan finishes.
   withLock(dmonInst.threadLock):
-    for watch in dmonInst.watches:
+    for index in 0 ..< dmonInst.watches.len:
+      let watch {.cursor.} = dmonInst.watches[index]
       if watch != nil and watch.ready:
-        watches.add(watch)
-
-  for watch in watches:
-    watch.processWatch()
+        watch.processWatch()
 
 proc monitorThread*() {.thread.} =
   {.cast(gcsafe).}:
